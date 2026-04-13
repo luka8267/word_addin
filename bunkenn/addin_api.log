@@ -1,0 +1,20 @@
+bunken add-in API listening on https://127.0.0.1:8765
+GET /taskpane.html
+STATIC root=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin candidate=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin\taskpane.html
+127.0.0.1 - - [13/Apr/2026 23:17:33] "GET /taskpane.html HTTP/1.1" 200 -
+GET /api/addin/papers
+127.0.0.1 - - [13/Apr/2026 23:17:33] "GET /api/addin/papers?q=clinical HTTP/1.1" 200 -
+GET /taskpane.html
+STATIC root=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin candidate=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin\taskpane.html
+127.0.0.1 - - [13/Apr/2026 23:18:00] "GET /taskpane.html?et= HTTP/1.1" 200 -
+GET /taskpane.js
+STATIC root=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin candidate=C:\Users\run_r\AppData\Local\Packages\Microsoft.MinecraftUWP_8wekyb3d8bbwe\LocalState\games\com.mojang\development_behavior_packs\bunken-word-addin\taskpane.js
+127.0.0.1 - - [13/Apr/2026 23:18:00] "GET /taskpane.js?v=20260413d HTTP/1.1" 200 -
+POST /api/addin/auth/session
+127.0.0.1 - - [13/Apr/2026 23:18:00] "POST /api/addin/auth/session HTTP/1.1" 200 -
+GET /api/addin/papers
+127.0.0.1 - - [13/Apr/2026 23:18:07] "GET /api/addin/papers?q=clinical HTTP/1.1" 200 -
+POST /api/addin/citations/format
+127.0.0.1 - - [13/Apr/2026 23:18:11] "POST /api/addin/citations/format HTTP/1.1" 200 -
+POST /api/addin/bibliography/format
+127.0.0.1 - - [13/Apr/2026 23:18:20] "POST /api/addin/bibliography/format HTTP/1.1" 200 -
