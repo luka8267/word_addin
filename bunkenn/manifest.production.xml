@@ -3,6 +3,7 @@
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+  xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
   <Id>4E4651A8-424E-4C61-994A-1F7A3365874D</Id>
   <Version>1.0.0.0</Version>
@@ -24,6 +25,11 @@
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Requirements>
+      <bt:Sets DefaultMinVersion="1.1">
+        <bt:Set Name="AddinCommands" MinVersion="1.1"/>
+      </bt:Sets>
+    </Requirements>
     <Hosts>
       <Host xsi:type="WordHost">
         <DesktopFormFactor>
