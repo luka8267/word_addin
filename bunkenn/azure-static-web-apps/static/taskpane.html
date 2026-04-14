@@ -36,7 +36,7 @@
       .card { margin-bottom: 14px; padding: 16px; border-radius: 18px; background: var(--card); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
       .card.hidden { display: none; }
       h2 { margin: 0 0 10px; font-size: 17px; }
-      input {
+      input, select {
         width: 100%;
         padding: 11px 12px;
         border-radius: 12px;
@@ -55,7 +55,7 @@
       .button.primary { background: var(--primary); color: #fff; }
       .button.secondary { border: 1px solid #1f2937; background: var(--secondary); color: var(--secondary-text); }
       .button.ghost { border: 1px solid #cbd2d9; background: #fff; color: var(--text); }
-      .button:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
+      .button:disabled, input:disabled, select:disabled { opacity: 0.55; cursor: not-allowed; }
       .inline-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
       .inline-row.start { align-items: center; }
       .user-line { margin: 0; font-size: 12px; color: var(--muted); }
@@ -126,6 +126,21 @@
         </div>
       </section>
 
+      <section id="style-card" class="card hidden">
+        <div class="inline-row start">
+          <div>
+            <h2>引用スタイル</h2>
+            <p class="message">本文の引用と参考文献を、選んだスタイルでまとめて更新します。</p>
+          </div>
+        </div>
+        <select id="style-select">
+          <option value="vancouver">Vancouver</option>
+          <option value="apa">APA</option>
+          <option value="nature">Nature</option>
+        </select>
+        <button id="apply-style-button" class="button secondary" type="button">このスタイルを適用</button>
+      </section>
+
       <section id="citation-card" class="card hidden">
         <h2>引用挿入</h2>
         <p id="selection-message" class="message">文献を選ぶと本文に引用を挿入できます。</p>
@@ -141,6 +156,6 @@
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=auth1"></script>
+    <script src="./taskpane.js?v=style1"></script>
   </body>
 </html>
