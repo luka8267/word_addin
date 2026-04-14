@@ -102,7 +102,12 @@
       </section>
 
       <section id="search-card" class="card hidden">
-        <h2>文献検索</h2>
+        <div class="inline-row start">
+          <div>
+            <h2>文献検索</h2>
+          </div>
+          <button id="refresh-papers-button" class="toggle-button" type="button">更新</button>
+        </div>
         <input id="search-input" placeholder="例: Suzuki 2024" />
         <p id="search-message" class="message">タイトル、著者、雑誌名で検索できます。</p>
         <div id="search-results" class="list"></div>
