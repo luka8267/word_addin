@@ -12,6 +12,9 @@
     searchTimerId: null,
     selectedPaper: null,
     results: [],
+    libraryResults: [],
+    isLibraryOpen: false,
+    hasLoadedLibrary: false,
     auth: loadAuthState(),
   };
 
@@ -20,6 +23,7 @@
   const authCard = document.getElementById("auth-card");
   const appCard = document.getElementById("app-card");
   const searchCard = document.getElementById("search-card");
+  const libraryCard = document.getElementById("library-card");
   const citationCard = document.getElementById("citation-card");
   const bibliographyCard = document.getElementById("bibliography-card");
   const emailInput = document.getElementById("email-input");
@@ -31,6 +35,10 @@
   const searchInput = document.getElementById("search-input");
   const searchMessage = document.getElementById("search-message");
   const searchResults = document.getElementById("search-results");
+  const libraryMessage = document.getElementById("library-message");
+  const libraryResults = document.getElementById("library-results");
+  const libraryPanel = document.getElementById("library-panel");
+  const libraryToggleButton = document.getElementById("library-toggle-button");
   const locatorInput = document.getElementById("locator-input");
   const selectionMessage = document.getElementById("selection-message");
   const insertCitationButton = document.getElementById("insert-citation-button");
@@ -86,6 +94,7 @@
     authCard.classList.toggle("hidden", isAuthenticated);
     appCard.classList.toggle("hidden", !isAuthenticated);
     searchCard.classList.toggle("hidden", !isAuthenticated);
+    libraryCard.classList.toggle("hidden", !isAuthenticated);
     citationCard.classList.toggle("hidden", !isAuthenticated);
     bibliographyCard.classList.toggle("hidden", !isAuthenticated);
     userMessage.textContent = isAuthenticated
@@ -104,14 +113,56 @@
     logoutButton.disabled = state.isBusy || !state.isReady || !authenticated;
 
     searchInput.disabled = disabled;
+    libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     refreshBibliographyButton.disabled = disabled;
   }
 
-  function renderResults() {
-    searchResults.innerHTML = "";
-    for (const paper of state.results) {
+  async function insertSelectedPaperCitation(paper) {
+    if (!paper) {
+      setStatus("先に文献を選んでください。");
+      return;
+    }
+    setBusy(true);
+    setStatus("引用を挿入しています。");
+    try {
+      const documentState = await loadDocumentState();
+      await Word.run(async function (context) {
+        const selection = context.document.getSelection();
+        const insertedRange = selection.insertText(formatReferenceLabel((documentState.citations || []).length + 1), Word.InsertLocation.replace);
+        const control = insertedRange.insertContentControl();
+        control.tag = CITATION_TAG;
+        control.title = "bunken citation";
+        control.font.superscript = true;
+        context.load(control, "id");
+        await context.sync();
+
+        documentState.citations.push({
+          citationId: buildCitationId(),
+          controlId: control.id,
+          paperIds: [paper.id],
+          style: STYLE,
+          locator: locatorInput.value.trim() || undefined,
+          renderedText: "",
+          referenceNumber: null,
+        });
+
+        await renumberCitationsInContext(context, documentState);
+        await context.sync();
+      });
+      await saveDocumentState(documentState);
+      setStatus(`引用を挿入しました: ${paper.title}`);
+    } catch (error) {
+      setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function renderPaperList(container, papers) {
+    container.innerHTML = "";
+    for (const paper of papers) {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "paper-item";
@@ -131,10 +182,32 @@
         state.selectedPaper = paper;
         selectionMessage.textContent = `選択中: ${paper.title}`;
         renderResults();
+        renderLibraryResults();
         updateDisabledState();
       });
-      searchResults.appendChild(button);
+      button.addEventListener("dblclick", function () {
+        state.selectedPaper = paper;
+        selectionMessage.textContent = `選択中: ${paper.title}`;
+        renderResults();
+        renderLibraryResults();
+        updateDisabledState();
+        void insertSelectedPaperCitation(paper);
+      });
+      container.appendChild(button);
     }
+  }
+
+  function renderResults() {
+    renderPaperList(searchResults, state.results);
+  }
+
+  function renderLibraryResults() {
+    renderPaperList(libraryResults, state.libraryResults);
+  }
+
+  function renderLibraryState() {
+    libraryPanel.classList.toggle("hidden", !state.isLibraryOpen);
+    libraryToggleButton.textContent = state.isLibraryOpen ? "一覧を閉じる" : "一覧を開く";
   }
 
   async function fetchJson(url, init) {
@@ -439,45 +512,31 @@
     }, 350);
   });
 
-  insertCitationButton.addEventListener("click", async function () {
-    if (!state.selectedPaper) {
-      setStatus("先に文献を選んでください。");
+  libraryToggleButton.addEventListener("click", async function () {
+    state.isLibraryOpen = !state.isLibraryOpen;
+    renderLibraryState();
+    if (!state.isLibraryOpen || state.hasLoadedLibrary) {
       return;
     }
+
     setBusy(true);
-    setStatus("引用を挿入しています。");
+    libraryMessage.textContent = "文献一覧を読み込んでいます...";
     try {
-      const documentState = await loadDocumentState();
-      await Word.run(async function (context) {
-        const selection = context.document.getSelection();
-        const insertedRange = selection.insertText(formatReferenceLabel((documentState.citations || []).length + 1), Word.InsertLocation.replace);
-        const control = insertedRange.insertContentControl();
-        control.tag = CITATION_TAG;
-        control.title = "bunken citation";
-        control.font.superscript = true;
-        context.load(control, "id");
-        await context.sync();
-
-        documentState.citations.push({
-          citationId: buildCitationId(),
-          controlId: control.id,
-          paperIds: [state.selectedPaper.id],
-          style: STYLE,
-          locator: locatorInput.value.trim() || undefined,
-          renderedText: "",
-          referenceNumber: null,
-        });
-
-        await renumberCitationsInContext(context, documentState);
-        await context.sync();
-      });
-      await saveDocumentState(documentState);
-      setStatus(`引用を挿入しました: ${state.selectedPaper.title}`);
+      state.libraryResults = await searchPapers("");
+      state.hasLoadedLibrary = true;
+      libraryMessage.textContent = state.libraryResults.length === 0
+        ? "文献がまだありません。"
+        : `${state.libraryResults.length} 件の文献を表示しています。`;
+      renderLibraryResults();
     } catch (error) {
-      setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
+      libraryMessage.textContent = error && error.message ? error.message : "文献一覧の読み込みに失敗しました。";
     } finally {
       setBusy(false);
     }
+  });
+
+  insertCitationButton.addEventListener("click", async function () {
+    await insertSelectedPaperCitation(state.selectedPaper);
   });
 
   refreshBibliographyButton.addEventListener("click", async function () {
@@ -500,6 +559,7 @@
       return;
     }
     renderAuthState();
+    renderLibraryState();
     try {
       if (state.auth && state.auth.accessToken) {
         const session = await loadSession();
