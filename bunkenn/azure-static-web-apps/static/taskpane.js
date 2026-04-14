@@ -59,6 +59,11 @@
     if (state.auth && state.auth.accessToken) {
       headers.Authorization = `Bearer ${state.auth.accessToken}`;
     }
+    if (state.auth && state.auth.userId) {
+      headers["X-Bunken-User-Id"] = state.auth.userId;
+      headers["X-Bunken-Username"] = state.auth.username || "";
+      headers["X-Bunken-Email"] = state.auth.email || "";
+    }
     return headers;
   }
 
@@ -181,14 +186,26 @@
   async function searchPapers(query) {
     const url = new URL("/api/addin/papers", API_BASE_URL);
     url.searchParams.set("q", query);
-    const response = await fetchJson(url.toString(), { method: "GET" });
+    const response = await fetchJson(url.toString(), {
+      method: "GET",
+      headers: {
+        "X-Bunken-User-Id": state.auth && state.auth.userId ? state.auth.userId : "",
+        "X-Bunken-Username": state.auth && state.auth.username ? state.auth.username : "",
+        "X-Bunken-Email": state.auth && state.auth.email ? state.auth.email : "",
+      },
+    });
     return response.items || [];
   }
 
   async function formatCitation(payload) {
     return fetchJson(`${API_BASE_URL}/api/addin/citations/format`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Bunken-User-Id": state.auth && state.auth.userId ? state.auth.userId : "",
+        "X-Bunken-Username": state.auth && state.auth.username ? state.auth.username : "",
+        "X-Bunken-Email": state.auth && state.auth.email ? state.auth.email : "",
+      },
       body: JSON.stringify(payload),
     });
   }
@@ -196,7 +213,12 @@
   async function formatBibliography(paperIds, style) {
     return fetchJson(`${API_BASE_URL}/api/addin/bibliography/format`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Bunken-User-Id": state.auth && state.auth.userId ? state.auth.userId : "",
+        "X-Bunken-Username": state.auth && state.auth.username ? state.auth.username : "",
+        "X-Bunken-Email": state.auth && state.auth.email ? state.auth.email : "",
+      },
       body: JSON.stringify({ paperIds, style }),
     });
   }
