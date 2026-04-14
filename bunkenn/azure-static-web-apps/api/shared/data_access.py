@@ -160,24 +160,7 @@ def resolve_request_context(req: func.HttpRequest) -> dict[str, str]:
 
 def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary]:
     user_id = context.get("userId", "")
-    access_token = context.get("access_token", "")
 
-    if use_supabase() and user_id:
-        normalized_query = (query or "").strip()
-        params = {
-            "select": "id,title,authors,journal,year,doi,user_id",
-            "user_id": f"eq.{user_id}",
-            "order": "display_order.asc.nullslast,id.asc",
-        }
-        if normalized_query:
-            escaped_query = normalized_query.replace("%", r"\%").replace(",", r"\,")
-            params["or"] = (
-                f"(title.ilike.*{escaped_query}*,"
-                f"authors.ilike.*{escaped_query}*,"
-                f"journal.ilike.*{escaped_query}*)"
-            )
-        rows = request_supabase("/rest/v1/papers", query_params=params, bearer_token=access_token)
-        return [paper_from_mapping(row) for row in rows]
     if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
         normalized_query = (query or "").strip()
         params = {
@@ -243,22 +226,8 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
         return []
 
     user_id = context.get("userId", "")
-    access_token = context.get("access_token", "")
     csv_ids = ",".join(paper_ids)
 
-    if use_supabase() and user_id:
-        rows = request_supabase(
-            "/rest/v1/papers",
-            query_params={
-                "select": "id,title,authors,journal,year,doi,user_id",
-                "user_id": f"eq.{user_id}",
-                "id": f"in.({csv_ids})",
-            },
-            bearer_token=access_token,
-            api_key=SUPABASE_PUBLIC_KEY,
-        )
-        by_id = {str(row["id"]): paper_from_mapping(row) for row in rows}
-        return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
     if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
         rows = request_supabase(
             "/rest/v1/papers",
