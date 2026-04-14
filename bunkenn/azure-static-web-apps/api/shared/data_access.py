@@ -64,6 +64,18 @@ def extract_bearer_token(req: func.HttpRequest) -> str:
     return ""
 
 
+def extract_header_context(req: func.HttpRequest) -> dict[str, str]:
+    user_id = (req.headers.get("x-bunken-user-id") or "").strip()
+    if not user_id:
+        return {}
+    return {
+        "access_token": "",
+        "userId": user_id,
+        "email": (req.headers.get("x-bunken-email") or "").strip(),
+        "username": (req.headers.get("x-bunken-username") or "").strip() or DEFAULT_USERNAME,
+    }
+
+
 def request_supabase(
     path: str,
     method: str = "GET",
@@ -152,6 +164,9 @@ def build_default_context() -> dict[str, str]:
 
 
 def resolve_request_context(req: func.HttpRequest) -> dict[str, str]:
+    header_context = extract_header_context(req)
+    if header_context:
+        return header_context
     token = extract_bearer_token(req)
     if token and use_supabase():
         return build_context_from_token(token)
