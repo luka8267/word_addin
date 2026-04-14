@@ -35,6 +35,7 @@
   const searchInput = document.getElementById("search-input");
   const searchMessage = document.getElementById("search-message");
   const searchResults = document.getElementById("search-results");
+  const refreshPapersButton = document.getElementById("refresh-papers-button");
   const libraryMessage = document.getElementById("library-message");
   const libraryResults = document.getElementById("library-results");
   const libraryPanel = document.getElementById("library-panel");
@@ -113,6 +114,7 @@
     logoutButton.disabled = state.isBusy || !state.isReady || !authenticated;
 
     searchInput.disabled = disabled;
+    refreshPapersButton.disabled = !state.isReady || state.isBusy || !authenticated;
     libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
@@ -420,6 +422,30 @@
     return response.items || [];
   }
 
+  async function refreshPaperViews() {
+    const activeQuery = searchInput.value.trim();
+    const searchPromise = activeQuery ? searchPapers(activeQuery) : Promise.resolve([]);
+    const libraryPromise = state.isLibraryOpen ? searchPapers("") : Promise.resolve(state.libraryResults);
+    const [searchItems, libraryItems] = await Promise.all([searchPromise, libraryPromise]);
+
+    state.results = searchItems;
+    state.libraryResults = libraryItems;
+    state.hasLoadedLibrary = state.isLibraryOpen ? true : state.hasLoadedLibrary;
+
+    searchMessage.textContent = activeQuery
+      ? (searchItems.length === 0 ? "一致する文献はありません。" : `${searchItems.length} 件見つかりました。`)
+      : "タイトル、著者、雑誌名で検索できます。";
+
+    if (state.isLibraryOpen) {
+      libraryMessage.textContent = libraryItems.length === 0
+        ? "文献がまだありません。"
+        : `${libraryItems.length} 件の文献を表示しています。`;
+    }
+
+    renderResults();
+    renderLibraryResults();
+  }
+
   async function formatCitation(payload) {
     return fetchJson(`${API_BASE_URL}/api/addin/citations/format`, {
       method: "POST",
@@ -510,6 +536,27 @@
         setBusy(false);
       }
     }, 350);
+  });
+
+  refreshPapersButton.addEventListener("click", async function () {
+    setBusy(true);
+    searchMessage.textContent = "文献を更新しています...";
+    if (state.isLibraryOpen) {
+      libraryMessage.textContent = "文献一覧を更新しています...";
+    }
+    try {
+      await refreshPaperViews();
+      setStatus("文献一覧を更新しました。");
+    } catch (error) {
+      const message = error && error.message ? error.message : "文献の更新に失敗しました。";
+      searchMessage.textContent = message;
+      if (state.isLibraryOpen) {
+        libraryMessage.textContent = message;
+      }
+      setStatus(message);
+    } finally {
+      setBusy(false);
+    }
   });
 
   libraryToggleButton.addEventListener("click", async function () {
