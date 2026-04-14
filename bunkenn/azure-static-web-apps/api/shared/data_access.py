@@ -3,6 +3,7 @@ import os
 import sqlite3
 from pathlib import Path
 from urllib.parse import urlencode
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from .bunken_models import PaperSummary
@@ -71,8 +72,12 @@ def request_supabase(path: str, query_params: dict[str, str]) -> list[dict]:
             "Accept": "application/json",
         },
     )
-    with urlopen(request, timeout=15) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        error_body = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Supabase request failed: {error.code} {error_body}") from error
 
 
 def search_user_papers(user_id: str, query: str) -> list[PaperSummary]:
