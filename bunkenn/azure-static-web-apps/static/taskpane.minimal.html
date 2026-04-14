@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>bunken Word Minimal</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe6;
+        --card: #fffdf8;
+        --line: #d6d3d1;
+        --text: #1c1917;
+        --muted: #57534e;
+        --ok: #166534;
+        --warn: #9a3412;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: 20px;
+        background:
+          radial-gradient(circle at top right, rgba(234, 179, 8, 0.16), transparent 34%),
+          linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: "Segoe UI", "Hiragino Sans", sans-serif;
+      }
+      main {
+        max-width: 420px;
+        margin: 0 auto;
+        display: grid;
+        gap: 14px;
+      }
+      .panel {
+        background: var(--card);
+        border: 1px solid rgba(214, 211, 209, 0.9);
+        border-radius: 18px;
+        padding: 16px;
+        box-shadow: 0 10px 28px rgba(28, 25, 23, 0.08);
+      }
+      h1, h2, p { margin: 0; }
+      h1 { font-size: 24px; }
+      h2 { font-size: 16px; margin-bottom: 8px; }
+      .subtitle {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 5px 10px;
+        border-radius: 999px;
+        background: #fde68a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .pill.ready { background: #bbf7d0; color: var(--ok); }
+      .meta {
+        display: grid;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .meta-item {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+      .label {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      code {
+        word-break: break-word;
+        font-family: "SFMono-Regular", Consolas, monospace;
+      }
+      #error-log {
+        color: var(--warn);
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <span id="ready-pill" class="pill">Loading</span>
+        <h1 style="margin-top:12px;">bunken Word</h1>
+        <p class="subtitle">Task pane の表示可否だけを確認する最小ページです。</p>
+      </section>
+
+      <section class="panel">
+        <h2>Office 状態</h2>
+        <div class="meta">
+          <div class="meta-item">
+            <span class="label">Host</span>
+            <code id="host-name">waiting...</code>
+          </div>
+          <div class="meta-item">
+            <span class="label">Platform</span>
+            <code id="platform-name">waiting...</code>
+          </div>
+          <div class="meta-item">
+            <span class="label">Origin</span>
+            <code id="origin-name"></code>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>診断</h2>
+        <div class="meta">
+          <div class="meta-item">
+            <span class="label">Status</span>
+            <p id="status-text">Office.onReady を待っています。</p>
+          </div>
+          <div class="meta-item">
+            <span class="label">Error</span>
+            <p id="error-log">none</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script src="./taskpane.minimal.js"></script>
+  </body>
+</html>
