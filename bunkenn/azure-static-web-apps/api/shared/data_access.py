@@ -16,7 +16,12 @@ DEFAULT_USER_ID = os.getenv("BUNKEN_DEFAULT_USER_ID", "")
 DEFAULT_EMAIL = os.getenv("BUNKEN_DEFAULT_EMAIL", "")
 DEFAULT_USERNAME = os.getenv("BUNKEN_DEFAULT_USERNAME", "cloud-user")
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY") or ""
+SUPABASE_ADMIN_KEY = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""
+SUPABASE_PUBLIC_KEY = (
+    os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    or os.getenv("SUPABASE_ANON_KEY")
+    or SUPABASE_ADMIN_KEY
+)
 SAMPLE_DATA_PATH = Path(__file__).resolve().with_name("sample_papers.json")
 
 
@@ -28,7 +33,7 @@ def load_sample_papers() -> list[PaperSummary]:
 
 
 def use_supabase() -> bool:
-    return bool(SUPABASE_URL and SUPABASE_KEY)
+    return bool(SUPABASE_URL and (SUPABASE_PUBLIC_KEY or SUPABASE_ADMIN_KEY))
 
 
 def use_sqlite() -> bool:
@@ -65,15 +70,17 @@ def request_supabase(
     query_params: dict[str, str] | None = None,
     json_body: dict | None = None,
     bearer_token: str | None = None,
+    api_key: str | None = None,
 ) -> dict | list[dict]:
     query_string = ""
     if query_params:
         query_string = f"?{urlencode(query_params, safe='(),.*')}"
     url = f"{SUPABASE_URL}{path}{query_string}"
     body = None
+    resolved_api_key = api_key or SUPABASE_PUBLIC_KEY or SUPABASE_ADMIN_KEY
     headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {bearer_token or SUPABASE_KEY}",
+        "apikey": resolved_api_key,
+        "Authorization": f"Bearer {bearer_token or resolved_api_key}",
         "Accept": "application/json",
     }
     if json_body is not None:
@@ -92,19 +99,20 @@ def request_supabase(
 
 def login_with_password(email: str, password: str) -> dict:
     if not use_supabase():
-        raise RuntimeError("SUPABASE_URL and SUPABASE_KEY are required for login")
+        raise RuntimeError("SUPABASE_URL and SUPABASE_PUBLIC_KEY are required for login")
     return request_supabase(
         "/auth/v1/token",
         method="POST",
         query_params={"grant_type": "password"},
         json_body={"email": email, "password": password},
+        api_key=SUPABASE_PUBLIC_KEY,
     )
 
 
 def fetch_user_from_token(access_token: str) -> dict:
     if not access_token:
         raise RuntimeError("Missing access token")
-    return request_supabase("/auth/v1/user", bearer_token=access_token)
+    return request_supabase("/auth/v1/user", bearer_token=access_token, api_key=SUPABASE_PUBLIC_KEY)
 
 
 def build_context_from_token(access_token: str) -> dict[str, str]:
@@ -167,6 +175,22 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
             )
         rows = request_supabase("/rest/v1/papers", query_params=params, bearer_token=access_token)
         return [paper_from_mapping(row) for row in rows]
+    if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
+        normalized_query = (query or "").strip()
+        params = {
+            "select": "id,title,authors,journal,year,doi,user_id",
+            "user_id": f"eq.{user_id}",
+            "order": "display_order.asc.nullslast,id.asc",
+        }
+        if normalized_query:
+            escaped_query = normalized_query.replace("%", r"\%").replace(",", r"\,")
+            params["or"] = (
+                f"(title.ilike.*{escaped_query}*,"
+                f"authors.ilike.*{escaped_query}*,"
+                f"journal.ilike.*{escaped_query}*)"
+            )
+        rows = request_supabase("/rest/v1/papers", query_params=params, api_key=SUPABASE_ADMIN_KEY)
+        return [paper_from_mapping(row) for row in rows]
 
     if use_sqlite():
         normalized_query = f"%{(query or '').strip()}%"
@@ -217,9 +241,9 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
 
     user_id = context.get("userId", "")
     access_token = context.get("access_token", "")
+    csv_ids = ",".join(paper_ids)
 
     if use_supabase() and user_id:
-        csv_ids = ",".join(paper_ids)
         rows = request_supabase(
             "/rest/v1/papers",
             query_params={
@@ -228,6 +252,19 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
                 "id": f"in.({csv_ids})",
             },
             bearer_token=access_token,
+            api_key=SUPABASE_PUBLIC_KEY,
+        )
+        by_id = {str(row["id"]): paper_from_mapping(row) for row in rows}
+        return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
+    if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
+        rows = request_supabase(
+            "/rest/v1/papers",
+            query_params={
+                "select": "id,title,authors,journal,year,doi,user_id",
+                "user_id": f"eq.{user_id}",
+                "id": f"in.({csv_ids})",
+            },
+            api_key=SUPABASE_ADMIN_KEY,
         )
         by_id = {str(row["id"]): paper_from_mapping(row) for row in rows}
         return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
