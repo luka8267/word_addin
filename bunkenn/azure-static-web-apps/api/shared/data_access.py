@@ -80,9 +80,12 @@ def request_supabase(
     resolved_api_key = api_key or SUPABASE_PUBLIC_KEY or SUPABASE_ADMIN_KEY
     headers = {
         "apikey": resolved_api_key,
-        "Authorization": f"Bearer {bearer_token or resolved_api_key}",
         "Accept": "application/json",
     }
+    if bearer_token:
+        headers["Authorization"] = f"Bearer {bearer_token}"
+    elif api_key == SUPABASE_ADMIN_KEY and SUPABASE_ADMIN_KEY.startswith("eyJ"):
+        headers["Authorization"] = f"Bearer {SUPABASE_ADMIN_KEY}"
     if json_body is not None:
         body = json.dumps(json_body).encode("utf-8")
         headers["Content-Type"] = "application/json"
