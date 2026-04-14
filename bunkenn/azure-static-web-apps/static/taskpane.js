@@ -424,9 +424,10 @@
 
   async function refreshPaperViews() {
     const activeQuery = searchInput.value.trim();
+    const allPapersPromise = searchPapers("");
     const searchPromise = activeQuery ? searchPapers(activeQuery) : Promise.resolve([]);
-    const libraryPromise = state.isLibraryOpen ? searchPapers("") : Promise.resolve(state.libraryResults);
-    const [searchItems, libraryItems] = await Promise.all([searchPromise, libraryPromise]);
+    const [allPapers, searchItems] = await Promise.all([allPapersPromise, searchPromise]);
+    const libraryItems = state.isLibraryOpen ? allPapers : state.libraryResults;
 
     state.results = searchItems;
     state.libraryResults = libraryItems;
@@ -444,6 +445,46 @@
 
     renderResults();
     renderLibraryResults();
+    return allPapers;
+  }
+
+  async function syncDeletedCitations(existingPapers) {
+    const validPaperIds = new Set((existingPapers || []).map(function (paper) { return String(paper.id); }));
+    const documentState = await loadDocumentState();
+
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+
+      const citationControlsById = new Map();
+      controls.items.forEach(function (control) {
+        if (control.tag === CITATION_TAG) {
+          citationControlsById.set(String(control.id), control);
+        }
+      });
+
+      const nextCitations = [];
+      documentState.citations.forEach(function (citation) {
+        const primaryPaperId = citation.paperIds && citation.paperIds[0] ? String(citation.paperIds[0]) : "";
+        const control = citationControlsById.get(String(citation.controlId));
+        if (!control) {
+          return;
+        }
+        if (!primaryPaperId || !validPaperIds.has(primaryPaperId)) {
+          control.delete(false);
+          return;
+        }
+        nextCitations.push(citation);
+      });
+
+      documentState.citations = nextCitations;
+      await renumberCitationsInContext(context, documentState);
+      await context.sync();
+    });
+
+    await saveDocumentState(documentState);
+    return documentState;
   }
 
   async function formatCitation(payload) {
@@ -545,8 +586,9 @@
       libraryMessage.textContent = "文献一覧を更新しています...";
     }
     try {
-      await refreshPaperViews();
-      setStatus("文献一覧を更新しました。");
+      const papers = await refreshPaperViews();
+      await syncDeletedCitations(papers);
+      setStatus("文献一覧と引用を更新しました。");
     } catch (error) {
       const message = error && error.message ? error.message : "文献の更新に失敗しました。";
       searchMessage.textContent = message;
@@ -590,7 +632,8 @@
     setBusy(true);
     setStatus("参考文献を更新しています。");
     try {
-      const documentState = await loadDocumentState();
+      const papers = await searchPapers("");
+      const documentState = await syncDeletedCitations(papers);
       await updateBibliographyFromState(documentState);
       setStatus("参考文献を更新しました。");
     } catch (error) {
