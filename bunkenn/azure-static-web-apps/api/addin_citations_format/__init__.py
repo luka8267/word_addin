@@ -3,7 +3,7 @@ import json
 import azure.functions as func
 
 from shared.bunken_service import build_in_text_citation
-from shared.data_access import fetch_papers_by_ids, resolve_user_id
+from shared.data_access import fetch_papers_by_ids, resolve_request_context
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
@@ -11,7 +11,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
     items = payload.get("items", [])
     style = payload.get("style", "apa")
     paper_ids = [str(item.get("paperId")) for item in items]
-    papers = fetch_papers_by_ids(resolve_user_id(), paper_ids)
+    papers = fetch_papers_by_ids(resolve_request_context(req), paper_ids)
 
     rendered_items = []
     for item, paper in zip(items, papers):
