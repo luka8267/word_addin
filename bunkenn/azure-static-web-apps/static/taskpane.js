@@ -4,6 +4,7 @@
   const BIBLIOGRAPHY_TAG = "BUNKEN_BIBLIOGRAPHY";
   const CITATION_TAG = "BUNKEN_CITATION";
   const STYLE = "apa";
+  const AUTH_STORAGE_KEY = "bunkenWordAuth";
 
   const state = {
     isReady: false,
@@ -11,10 +12,22 @@
     searchTimerId: null,
     selectedPaper: null,
     results: [],
+    auth: loadAuthState(),
   };
 
   const readyBadge = document.getElementById("ready-badge");
   const status = document.getElementById("status");
+  const authCard = document.getElementById("auth-card");
+  const appCard = document.getElementById("app-card");
+  const searchCard = document.getElementById("search-card");
+  const citationCard = document.getElementById("citation-card");
+  const bibliographyCard = document.getElementById("bibliography-card");
+  const emailInput = document.getElementById("email-input");
+  const passwordInput = document.getElementById("password-input");
+  const loginButton = document.getElementById("login-button");
+  const logoutButton = document.getElementById("logout-button");
+  const authMessage = document.getElementById("auth-message");
+  const userMessage = document.getElementById("user-message");
   const searchInput = document.getElementById("search-input");
   const searchMessage = document.getElementById("search-message");
   const searchResults = document.getElementById("search-results");
@@ -23,16 +36,68 @@
   const insertCitationButton = document.getElementById("insert-citation-button");
   const refreshBibliographyButton = document.getElementById("refresh-bibliography-button");
 
+  function loadAuthState() {
+    try {
+      return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function saveAuthState(auth) {
+    state.auth = auth;
+    if (auth) {
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+    } else {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+    renderAuthState();
+  }
+
+  function authHeaders(extraHeaders) {
+    const headers = Object.assign({}, extraHeaders || {});
+    if (state.auth && state.auth.accessToken) {
+      headers.Authorization = `Bearer ${state.auth.accessToken}`;
+    }
+    return headers;
+  }
+
   function setStatus(message) { status.textContent = message; }
+
   function setReady(isReady) {
     state.isReady = isReady;
     readyBadge.textContent = isReady ? "Ready" : "Loading";
     readyBadge.classList.toggle("ready", isReady);
     updateDisabledState();
   }
-  function setBusy(isBusy) { state.isBusy = isBusy; updateDisabledState(); }
+
+  function setBusy(isBusy) {
+    state.isBusy = isBusy;
+    updateDisabledState();
+  }
+
+  function renderAuthState() {
+    const isAuthenticated = !!(state.auth && state.auth.accessToken);
+    authCard.classList.toggle("hidden", isAuthenticated);
+    appCard.classList.toggle("hidden", !isAuthenticated);
+    searchCard.classList.toggle("hidden", !isAuthenticated);
+    citationCard.classList.toggle("hidden", !isAuthenticated);
+    bibliographyCard.classList.toggle("hidden", !isAuthenticated);
+    userMessage.textContent = isAuthenticated
+      ? `${state.auth.username || ""}${state.auth.email ? ` (${state.auth.email})` : ""}`
+      : "";
+    updateDisabledState();
+  }
+
   function updateDisabledState() {
-    const disabled = !state.isReady || state.isBusy;
+    const authenticated = !!(state.auth && state.auth.accessToken);
+    const disabled = !state.isReady || state.isBusy || !authenticated;
+
+    emailInput.disabled = state.isBusy || !state.isReady;
+    passwordInput.disabled = state.isBusy || !state.isReady;
+    loginButton.disabled = state.isBusy || !state.isReady;
+    logoutButton.disabled = state.isBusy || !state.isReady || !authenticated;
+
     searchInput.disabled = disabled;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
@@ -68,7 +133,9 @@
   }
 
   async function fetchJson(url, init) {
-    const response = await fetch(url, init || {});
+    const requestInit = Object.assign({}, init || {});
+    requestInit.headers = authHeaders(requestInit.headers);
+    const response = await fetch(url, requestInit);
     if (!response.ok) {
       let detail = "";
       try {
@@ -134,6 +201,46 @@
     });
   }
 
+  async function login(email, password) {
+    return fetchJson(`${API_BASE_URL}/api/addin/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  }
+
+  async function loadSession() {
+    return fetchJson(`${API_BASE_URL}/api/addin/auth/session`, { method: "POST" });
+  }
+
+  loginButton.addEventListener("click", async function () {
+    setBusy(true);
+    authMessage.textContent = "ログイン中...";
+    try {
+      const session = await login(emailInput.value.trim(), passwordInput.value);
+      saveAuthState(session);
+      passwordInput.value = "";
+      authMessage.textContent = "ログインできました。";
+      setStatus("bunkenn にログインしました。");
+    } catch (error) {
+      authMessage.textContent = error && error.message ? error.message : "ログインに失敗しました。";
+      setStatus(authMessage.textContent);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  logoutButton.addEventListener("click", function () {
+    saveAuthState(null);
+    state.results = [];
+    state.selectedPaper = null;
+    searchInput.value = "";
+    searchResults.innerHTML = "";
+    authMessage.textContent = "bunkenn のアカウントでログインすると、その人の文献だけが表示されます。";
+    selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
+    setStatus("ログアウトしました。");
+  });
+
   searchInput.addEventListener("input", function () {
     const query = searchInput.value.trim();
     if (state.searchTimerId) { window.clearTimeout(state.searchTimerId); }
@@ -148,7 +255,9 @@
       searchMessage.textContent = "検索中...";
       try {
         state.results = await searchPapers(query);
-        searchMessage.textContent = state.results.length === 0 ? "一致する文献はありません。" : `${state.results.length} 件見つかりました。`;
+        searchMessage.textContent = state.results.length === 0
+          ? "一致する文献はありません。"
+          : `${state.results.length} 件見つかりました。`;
         renderResults();
       } catch (error) {
         searchMessage.textContent = error && error.message ? error.message : "検索に失敗しました。";
@@ -160,7 +269,7 @@
 
   insertCitationButton.addEventListener("click", async function () {
     if (!state.selectedPaper) {
-      setStatus("先に文献を選択してください。");
+      setStatus("先に文献を選んでください。");
       return;
     }
     setBusy(true);
@@ -239,12 +348,28 @@
       setStatus("このアドインは Word 専用です。");
       return;
     }
+    renderAuthState();
     try {
-      await fetchJson(`${API_BASE_URL}/api/addin/auth/session`, { method: "POST" });
-      setStatus("bunken に接続しました。");
+      if (state.auth && state.auth.accessToken) {
+        const session = await loadSession();
+        if (session.authenticated) {
+          state.auth.userId = session.userId;
+          state.auth.email = session.email;
+          state.auth.username = session.username;
+          saveAuthState(state.auth);
+          setStatus("bunkenn に接続しました。");
+        } else {
+          saveAuthState(null);
+          setStatus("ログインしてください。");
+        }
+      } else {
+        setStatus("ログインしてください。");
+      }
       setReady(true);
     } catch (error) {
-      setStatus(error && error.message ? error.message : "bunken のセッション確認に失敗しました。");
+      saveAuthState(null);
+      setStatus(error && error.message ? error.message : "セッション確認に失敗しました。");
+      setReady(true);
     }
   });
 })();
