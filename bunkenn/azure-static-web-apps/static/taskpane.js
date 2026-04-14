@@ -3,7 +3,7 @@
   const DOCUMENT_STATE_KEY = "bunkenDocumentState";
   const BIBLIOGRAPHY_TAG = "BUNKEN_BIBLIOGRAPHY";
   const CITATION_TAG = "BUNKEN_CITATION";
-  const STYLE = "apa";
+  const STYLE = "vancouver";
   const AUTH_STORAGE_KEY = "bunkenWordAuth";
 
   const state = {
@@ -158,6 +158,156 @@
     return `cit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
+  function createEmptyDocumentState() {
+    return {
+      version: 2,
+      style: STYLE,
+      citations: [],
+    };
+  }
+
+  function normalizeCitationEntry(citation) {
+    if (!citation || !citation.controlId) {
+      return null;
+    }
+    return {
+      citationId: citation.citationId || buildCitationId(),
+      controlId: citation.controlId,
+      paperIds: Array.isArray(citation.paperIds) ? citation.paperIds.filter(Boolean).map(String) : [],
+      style: citation.style || STYLE,
+      locator: citation.locator || undefined,
+      renderedText: citation.renderedText || "",
+      referenceNumber: citation.referenceNumber || null,
+    };
+  }
+
+  function normalizeDocumentState(value) {
+    const base = Object.assign(createEmptyDocumentState(), value || {});
+    base.citations = (base.citations || [])
+      .map(normalizeCitationEntry)
+      .filter(Boolean);
+    return base;
+  }
+
+  function formatReferenceLabel(referenceNumber) {
+    return `${referenceNumber})`;
+  }
+
+  function mapCitationsByControlId(citations) {
+    const byControlId = new Map();
+    for (const citation of citations || []) {
+      byControlId.set(String(citation.controlId), citation);
+    }
+    return byControlId;
+  }
+
+  function numberBibliographyEntries(entries) {
+    return (entries || []).map(function (entry, index) {
+      return `${index + 1}. ${entry}`;
+    });
+  }
+
+  function applyCitationFormatting(control, referenceLabel) {
+    control.insertText(referenceLabel, Word.InsertLocation.replace);
+    control.font.superscript = true;
+    control.appearance = "BoundingBox";
+  }
+
+  function renumberCitationsInContext(context, documentState) {
+    const controls = context.document.contentControls;
+    context.load(controls, "items/id,items/tag");
+
+    return context.sync().then(function () {
+      const citationsByControlId = mapCitationsByControlId(documentState.citations);
+      const controlsInOrder = controls.items.filter(function (item) { return item.tag === CITATION_TAG; });
+      const seenPaperIds = new Map();
+      const orderedPaperIds = [];
+      const nextCitations = [];
+
+      controlsInOrder.forEach(function (control) {
+        const citation = citationsByControlId.get(String(control.id));
+        if (!citation || !citation.paperIds.length) {
+          return;
+        }
+        const primaryPaperId = citation.paperIds[0];
+        if (!seenPaperIds.has(primaryPaperId)) {
+          seenPaperIds.set(primaryPaperId, seenPaperIds.size + 1);
+          orderedPaperIds.push(primaryPaperId);
+        }
+        citation.referenceNumber = seenPaperIds.get(primaryPaperId);
+        citation.renderedText = formatReferenceLabel(citation.referenceNumber);
+        citation.style = STYLE;
+        applyCitationFormatting(control, citation.renderedText);
+        nextCitations.push(citation);
+      });
+
+      documentState.citations = nextCitations;
+      documentState.style = STYLE;
+      return {
+        orderedPaperIds,
+        citations: nextCitations,
+      };
+    });
+  }
+
+  async function renumberDocumentCitations() {
+    const documentState = await loadDocumentState();
+    let orderedPaperIds = [];
+    await Word.run(async function (context) {
+      const numbering = await renumberCitationsInContext(context, documentState);
+      orderedPaperIds = numbering.orderedPaperIds;
+      await context.sync();
+    });
+    await saveDocumentState(documentState);
+    return {
+      documentState,
+      orderedPaperIds,
+    };
+  }
+
+  async function updateBibliographyFromState(documentState) {
+    let orderedPaperIds = [];
+    await Word.run(async function (context) {
+      const numbering = await renumberCitationsInContext(context, documentState);
+      orderedPaperIds = numbering.orderedPaperIds;
+      await context.sync();
+    });
+
+    const bibliography = await formatBibliography(orderedPaperIds, STYLE);
+    const numberedEntries = numberBibliographyEntries(bibliography.entries);
+
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+
+      const existing = controls.items.find(function (item) { return item.tag === BIBLIOGRAPHY_TAG; });
+      const content = `${bibliography.title}\n\n${numberedEntries.join("\n")}`;
+      if (existing) {
+        existing.insertText(content, Word.InsertLocation.replace);
+        documentState.bibliographyControlId = existing.id;
+      } else {
+        const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
+        const range = bodyEnd.insertText(`\n\n${content}`, Word.InsertLocation.after);
+        const control = range.insertContentControl();
+        control.tag = BIBLIOGRAPHY_TAG;
+        control.title = "bunken bibliography";
+        context.load(control, "id");
+        await context.sync();
+        documentState.bibliographyControlId = control.id;
+      }
+
+      await context.sync();
+    });
+
+    documentState.style = STYLE;
+    await saveDocumentState(documentState);
+    return {
+      orderedPaperIds,
+      bibliography,
+    };
+  }
+
   function loadDocumentState() {
     return new Promise(function (resolve, reject) {
       Office.context.document.settings.refreshAsync(function (result) {
@@ -165,7 +315,7 @@
           reject(new Error("document settings refresh failed"));
           return;
         }
-        resolve(Office.context.document.settings.get(DOCUMENT_STATE_KEY) || { version: 1, style: STYLE, citations: [] });
+        resolve(normalizeDocumentState(Office.context.document.settings.get(DOCUMENT_STATE_KEY)));
       });
     });
   }
@@ -297,29 +447,31 @@
     setBusy(true);
     setStatus("引用を挿入しています。");
     try {
-      const citation = await formatCitation({
-        style: STYLE,
-        items: [{ paperId: state.selectedPaper.id, locator: locatorInput.value.trim() || undefined, prefix: "", suffix: "" }],
-      });
+      const documentState = await loadDocumentState();
       await Word.run(async function (context) {
         const selection = context.document.getSelection();
-        const insertedRange = selection.insertText(citation.text, Word.InsertLocation.replace);
+        const insertedRange = selection.insertText(formatReferenceLabel((documentState.citations || []).length + 1), Word.InsertLocation.replace);
         const control = insertedRange.insertContentControl();
         control.tag = CITATION_TAG;
         control.title = "bunken citation";
+        control.font.superscript = true;
         context.load(control, "id");
         await context.sync();
-        const documentState = await loadDocumentState();
+
         documentState.citations.push({
           citationId: buildCitationId(),
           controlId: control.id,
           paperIds: [state.selectedPaper.id],
           style: STYLE,
           locator: locatorInput.value.trim() || undefined,
-          renderedText: citation.text,
+          renderedText: "",
+          referenceNumber: null,
         });
-        await saveDocumentState(documentState);
+
+        await renumberCitationsInContext(context, documentState);
+        await context.sync();
       });
+      await saveDocumentState(documentState);
       setStatus(`引用を挿入しました: ${state.selectedPaper.title}`);
     } catch (error) {
       setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
@@ -333,30 +485,7 @@
     setStatus("参考文献を更新しています。");
     try {
       const documentState = await loadDocumentState();
-      const uniquePaperIds = Array.from(new Set((documentState.citations || []).flatMap(function (citation) { return citation.paperIds || []; })));
-      const bibliography = await formatBibliography(uniquePaperIds, STYLE);
-      await Word.run(async function (context) {
-        const controls = context.document.contentControls;
-        context.load(controls, "items/id,items/tag");
-        await context.sync();
-        const existing = controls.items.find(function (item) { return item.tag === BIBLIOGRAPHY_TAG; });
-        const content = `${bibliography.title}\n\n${bibliography.entries.join("\n")}`;
-        if (existing) {
-          existing.insertText(content, Word.InsertLocation.replace);
-          documentState.bibliographyControlId = existing.id;
-        } else {
-          const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
-          const range = bodyEnd.insertText(`\n\n${content}`, Word.InsertLocation.after);
-          const control = range.insertContentControl();
-          control.tag = BIBLIOGRAPHY_TAG;
-          control.title = "bunken bibliography";
-          context.load(control, "id");
-          await context.sync();
-          documentState.bibliographyControlId = control.id;
-        }
-        documentState.style = STYLE;
-        await saveDocumentState(documentState);
-      });
+      await updateBibliographyFromState(documentState);
       setStatus("参考文献を更新しました。");
     } catch (error) {
       setStatus(error && error.message ? error.message : "参考文献の更新に失敗しました。");

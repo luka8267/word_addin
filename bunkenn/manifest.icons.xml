@@ -5,15 +5,15 @@
   xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
   xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
   xsi:type="TaskPaneApp">
-  <Id>4E4651A8-424E-4C61-994A-1F7A3365874D</Id>
+  <Id>EAFB6601-2F2F-4F9C-9B96-1B8317A13659</Id>
   <Version>1.0.0.0</Version>
   <ProviderName>bunken</ProviderName>
   <DefaultLocale>ja-JP</DefaultLocale>
-  <DisplayName DefaultValue="bunken Word"/>
-  <Description DefaultValue="Word citation and bibliography add-in for bunken"/>
+  <DisplayName DefaultValue="bunken Word (Icons)"/>
+  <Description DefaultValue="Icon resource diagnostic manifest for bunken Word."/>
   <IconUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-80.png"/>
-  <SupportUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+  <SupportUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.minimal.html"/>
   <AppDomains>
     <AppDomain>https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net</AppDomain>
   </AppDomains>
@@ -21,7 +21,7 @@
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+    <SourceLocation DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.minimal.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -77,9 +77,9 @@
         <bt:Image id="Icon.80" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.minimal.html"/>
         <bt:Url id="Commands.Url" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.minimal.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="bunken Word"/>
@@ -87,8 +87,8 @@
         <bt:String id="Bunken.OpenTaskpane.Label" DefaultValue="Open bunken"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Manage citations and bibliography from bunken."/>
-        <bt:String id="Bunken.OpenTaskpane.Description" DefaultValue="Open the bunken citation panel."/>
+        <bt:String id="GetStarted.Description" DefaultValue="Open the diagnostic task pane."/>
+        <bt:String id="Bunken.OpenTaskpane.Description" DefaultValue="Open the diagnostic task pane."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
