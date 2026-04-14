@@ -3,7 +3,7 @@
   const DOCUMENT_STATE_KEY = "bunkenDocumentState";
   const BIBLIOGRAPHY_TAG = "BUNKEN_BIBLIOGRAPHY";
   const CITATION_TAG = "BUNKEN_CITATION";
-  const STYLE = "vancouver";
+  const DEFAULT_STYLE = "vancouver";
   const AUTH_STORAGE_KEY = "bunkenWordAuth";
 
   const state = {
@@ -24,6 +24,7 @@
   const appCard = document.getElementById("app-card");
   const searchCard = document.getElementById("search-card");
   const libraryCard = document.getElementById("library-card");
+  const styleCard = document.getElementById("style-card");
   const citationCard = document.getElementById("citation-card");
   const bibliographyCard = document.getElementById("bibliography-card");
   const emailInput = document.getElementById("email-input");
@@ -40,6 +41,8 @@
   const libraryResults = document.getElementById("library-results");
   const libraryPanel = document.getElementById("library-panel");
   const libraryToggleButton = document.getElementById("library-toggle-button");
+  const styleSelect = document.getElementById("style-select");
+  const applyStyleButton = document.getElementById("apply-style-button");
   const locatorInput = document.getElementById("locator-input");
   const selectionMessage = document.getElementById("selection-message");
   const insertCitationButton = document.getElementById("insert-citation-button");
@@ -76,7 +79,47 @@
     return headers;
   }
 
+  function normalizeStyleName(style) {
+    const value = String(style || "").trim().toLowerCase();
+    if (value === "apa" || value === "nature" || value === "vancouver") {
+      return value;
+    }
+    return DEFAULT_STYLE;
+  }
+
+  function getCurrentStyle() {
+    return normalizeStyleName(styleSelect && styleSelect.value);
+  }
+
+  function isNumericStyle(style) {
+    return normalizeStyleName(style) === "vancouver";
+  }
+
+  function syncStyleSelection(style) {
+    const normalizedStyle = normalizeStyleName(style);
+    if (styleSelect) {
+      styleSelect.value = normalizedStyle;
+    }
+  }
+
   function setStatus(message) { status.textContent = message; }
+
+  function formatOfficeError(error, fallbackMessage) {
+    if (!error) {
+      return fallbackMessage;
+    }
+    const parts = [];
+    if (error.message) {
+      parts.push(error.message);
+    }
+    if (error.code) {
+      parts.push(`code=${error.code}`);
+    }
+    if (error.debugInfo && error.debugInfo.errorLocation) {
+      parts.push(`location=${error.debugInfo.errorLocation}`);
+    }
+    return parts.length > 0 ? parts.join(" | ") : fallbackMessage;
+  }
 
   function setReady(isReady) {
     state.isReady = isReady;
@@ -96,6 +139,7 @@
     appCard.classList.toggle("hidden", !isAuthenticated);
     searchCard.classList.toggle("hidden", !isAuthenticated);
     libraryCard.classList.toggle("hidden", !isAuthenticated);
+    styleCard.classList.toggle("hidden", !isAuthenticated);
     citationCard.classList.toggle("hidden", !isAuthenticated);
     bibliographyCard.classList.toggle("hidden", !isAuthenticated);
     userMessage.textContent = isAuthenticated
@@ -116,9 +160,15 @@
     searchInput.disabled = disabled;
     refreshPapersButton.disabled = !state.isReady || state.isBusy || !authenticated;
     libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
+    styleSelect.disabled = disabled;
+    applyStyleButton.disabled = disabled;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     refreshBibliographyButton.disabled = disabled;
+  }
+
+  function createCitationPlaceholder(style, count) {
+    return isNumericStyle(style) ? formatReferenceLabel(count) : "(citation)";
   }
 
   async function insertSelectedPaperCitation(paper) {
@@ -130,13 +180,16 @@
     setStatus("引用を挿入しています。");
     try {
       const documentState = await loadDocumentState();
+      const activeStyle = getCurrentStyle();
       await Word.run(async function (context) {
         const selection = context.document.getSelection();
-        const insertedRange = selection.insertText(formatReferenceLabel((documentState.citations || []).length + 1), Word.InsertLocation.replace);
+        const insertedRange = selection.insertText(
+          createCitationPlaceholder(activeStyle, (documentState.citations || []).length + 1),
+          Word.InsertLocation.replace
+        );
         const control = insertedRange.insertContentControl();
         control.tag = CITATION_TAG;
         control.title = "bunken citation";
-        control.font.superscript = true;
         context.load(control, "id");
         await context.sync();
 
@@ -144,19 +197,17 @@
           citationId: buildCitationId(),
           controlId: control.id,
           paperIds: [paper.id],
-          style: STYLE,
+          style: activeStyle,
           locator: locatorInput.value.trim() || undefined,
           renderedText: "",
           referenceNumber: null,
         });
-
-        await renumberCitationsInContext(context, documentState);
-        await context.sync();
       });
+      await reconcileCitations(documentState);
       await saveDocumentState(documentState);
       setStatus(`引用を挿入しました: ${paper.title}`);
     } catch (error) {
-      setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
+      setStatus(formatOfficeError(error, "引用の挿入に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -236,7 +287,7 @@
   function createEmptyDocumentState() {
     return {
       version: 2,
-      style: STYLE,
+      style: DEFAULT_STYLE,
       citations: [],
     };
   }
@@ -249,7 +300,7 @@
       citationId: citation.citationId || buildCitationId(),
       controlId: citation.controlId,
       paperIds: Array.isArray(citation.paperIds) ? citation.paperIds.filter(Boolean).map(String) : [],
-      style: citation.style || STYLE,
+      style: normalizeStyleName(citation.style),
       locator: citation.locator || undefined,
       renderedText: citation.renderedText || "",
       referenceNumber: citation.referenceNumber || null,
@@ -258,6 +309,7 @@
 
   function normalizeDocumentState(value) {
     const base = Object.assign(createEmptyDocumentState(), value || {});
+    base.style = normalizeStyleName(base.style);
     base.citations = (base.citations || [])
       .map(normalizeCitationEntry)
       .filter(Boolean);
@@ -282,22 +334,26 @@
     });
   }
 
-  function applyCitationFormatting(control, referenceLabel) {
-    control.insertText(referenceLabel, Word.InsertLocation.replace);
-    control.font.superscript = true;
-    control.appearance = "BoundingBox";
+  function applyCitationFormatting(control, referenceLabel, style) {
+    control.insertText(referenceLabel || "", Word.InsertLocation.replace);
   }
 
-  function renumberCitationsInContext(context, documentState) {
-    const controls = context.document.contentControls;
-    context.load(controls, "items/id,items/tag");
+  async function reconcileCitations(documentState) {
+    const activeStyle = getCurrentStyle() || documentState.style || DEFAULT_STYLE;
+    let orderedPaperIds = [];
+    let nextCitations = [];
 
-    return context.sync().then(function () {
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+
       const citationsByControlId = mapCitationsByControlId(documentState.citations);
       const controlsInOrder = controls.items.filter(function (item) { return item.tag === CITATION_TAG; });
       const seenPaperIds = new Map();
-      const orderedPaperIds = [];
-      const nextCitations = [];
+
+      nextCitations = [];
+      orderedPaperIds = [];
 
       controlsInOrder.forEach(function (control) {
         const citation = citationsByControlId.get(String(control.id));
@@ -309,31 +365,62 @@
           seenPaperIds.set(primaryPaperId, seenPaperIds.size + 1);
           orderedPaperIds.push(primaryPaperId);
         }
-        citation.referenceNumber = seenPaperIds.get(primaryPaperId);
-        citation.renderedText = formatReferenceLabel(citation.referenceNumber);
-        citation.style = STYLE;
-        applyCitationFormatting(control, citation.renderedText);
-        nextCitations.push(citation);
+        nextCitations.push(Object.assign({}, citation, {
+          style: activeStyle,
+          referenceNumber: seenPaperIds.get(primaryPaperId),
+        }));
       });
-
-      documentState.citations = nextCitations;
-      documentState.style = STYLE;
-      return {
-        orderedPaperIds,
-        citations: nextCitations,
-      };
     });
-  }
 
-  async function renumberDocumentCitations() {
-    const documentState = await loadDocumentState();
-    let orderedPaperIds = [];
+    if (isNumericStyle(activeStyle)) {
+      nextCitations = nextCitations.map(function (citation) {
+        return Object.assign({}, citation, {
+          renderedText: formatReferenceLabel(citation.referenceNumber),
+        });
+      });
+    } else if (nextCitations.length > 0) {
+      const payload = {
+        style: activeStyle,
+        items: nextCitations.map(function (citation) {
+          return {
+            paperId: citation.paperIds[0],
+            locator: citation.locator,
+          };
+        }),
+      };
+      const response = await formatCitation(payload);
+      const renderedItems = response.items || [];
+      nextCitations = nextCitations.map(function (citation, index) {
+        const rendered = renderedItems[index] && renderedItems[index].renderedText
+          ? renderedItems[index].renderedText
+          : "";
+        return Object.assign({}, citation, {
+          renderedText: rendered,
+          referenceNumber: null,
+        });
+      });
+    }
+
     await Word.run(async function (context) {
-      const numbering = await renumberCitationsInContext(context, documentState);
-      orderedPaperIds = numbering.orderedPaperIds;
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+
+      const controlsById = new Map();
+      controls.items.forEach(function (item) {
+        controlsById.set(String(item.id), item);
+      });
+      nextCitations.forEach(function (citation) {
+        const control = controlsById.get(String(citation.controlId));
+        if (control) {
+          applyCitationFormatting(control, citation.renderedText, activeStyle);
+        }
+      });
       await context.sync();
     });
-    await saveDocumentState(documentState);
+
+    documentState.citations = nextCitations;
+    documentState.style = activeStyle;
     return {
       documentState,
       orderedPaperIds,
@@ -341,15 +428,12 @@
   }
 
   async function updateBibliographyFromState(documentState) {
-    let orderedPaperIds = [];
-    await Word.run(async function (context) {
-      const numbering = await renumberCitationsInContext(context, documentState);
-      orderedPaperIds = numbering.orderedPaperIds;
-      await context.sync();
-    });
-
-    const bibliography = await formatBibliography(orderedPaperIds, STYLE);
-    const numberedEntries = numberBibliographyEntries(bibliography.entries);
+    const reconciliation = await reconcileCitations(documentState);
+    const activeStyle = normalizeStyleName(documentState.style);
+    const bibliography = await formatBibliography(reconciliation.orderedPaperIds, activeStyle);
+    const entries = isNumericStyle(activeStyle)
+      ? numberBibliographyEntries(bibliography.entries)
+      : (bibliography.entries || []);
 
     await Word.run(async function (context) {
       const controls = context.document.contentControls;
@@ -357,7 +441,7 @@
       await context.sync();
 
       const existing = controls.items.find(function (item) { return item.tag === BIBLIOGRAPHY_TAG; });
-      const content = `${bibliography.title}\n\n${numberedEntries.join("\n")}`;
+      const content = `${bibliography.title}\n\n${entries.join("\n")}`;
       if (existing) {
         existing.insertText(content, Word.InsertLocation.replace);
         documentState.bibliographyControlId = existing.id;
@@ -375,10 +459,9 @@
       await context.sync();
     });
 
-    documentState.style = STYLE;
     await saveDocumentState(documentState);
     return {
-      orderedPaperIds,
+      orderedPaperIds: reconciliation.orderedPaperIds,
       bibliography,
     };
   }
@@ -479,10 +562,10 @@
       });
 
       documentState.citations = nextCitations;
-      await renumberCitationsInContext(context, documentState);
       await context.sync();
     });
 
+    documentState.style = normalizeStyleName(documentState.style);
     await saveDocumentState(documentState);
     return documentState;
   }
@@ -572,7 +655,7 @@
           : `${state.results.length} 件見つかりました。`;
         renderResults();
       } catch (error) {
-        searchMessage.textContent = error && error.message ? error.message : "検索に失敗しました。";
+        searchMessage.textContent = formatOfficeError(error, "検索に失敗しました。");
       } finally {
         setBusy(false);
       }
@@ -618,7 +701,7 @@
         : `${state.libraryResults.length} 件の文献を表示しています。`;
       renderLibraryResults();
     } catch (error) {
-      libraryMessage.textContent = error && error.message ? error.message : "文献一覧の読み込みに失敗しました。";
+      libraryMessage.textContent = formatOfficeError(error, "文献一覧の読み込みに失敗しました。");
     } finally {
       setBusy(false);
     }
@@ -637,7 +720,23 @@
       await updateBibliographyFromState(documentState);
       setStatus("参考文献を更新しました。");
     } catch (error) {
-      setStatus(error && error.message ? error.message : "参考文献の更新に失敗しました。");
+      setStatus(formatOfficeError(error, "参考文献の更新に失敗しました。"));
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  applyStyleButton.addEventListener("click", async function () {
+    setBusy(true);
+    setStatus("引用スタイルを更新しています。");
+    try {
+      const papers = await searchPapers("");
+      const documentState = await syncDeletedCitations(papers);
+      documentState.style = getCurrentStyle();
+      await updateBibliographyFromState(documentState);
+      setStatus("引用スタイルを更新しました。");
+    } catch (error) {
+      setStatus(formatOfficeError(error, "引用スタイルの更新に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -651,6 +750,7 @@
     renderAuthState();
     renderLibraryState();
     try {
+      syncStyleSelection((await loadDocumentState()).style);
       if (state.auth && state.auth.accessToken) {
         const session = await loadSession();
         if (session.authenticated) {
@@ -669,7 +769,7 @@
       setReady(true);
     } catch (error) {
       saveAuthState(null);
-      setStatus(error && error.message ? error.message : "セッション確認に失敗しました。");
+      setStatus(formatOfficeError(error, "セッション確認に失敗しました。"));
       setReady(true);
     }
   });
