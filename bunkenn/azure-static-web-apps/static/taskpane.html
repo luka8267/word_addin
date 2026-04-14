@@ -57,7 +57,20 @@
       .button.ghost { border: 1px solid #cbd2d9; background: #fff; color: var(--text); }
       .button:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
       .inline-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+      .inline-row.start { align-items: center; }
       .user-line { margin: 0; font-size: 12px; color: var(--muted); }
+      .toggle-button {
+        width: auto;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid #cbd2d9;
+        background: #fff;
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .collapsible.hidden { display: none; }
     </style>
   </head>
   <body>
@@ -93,6 +106,19 @@
         <input id="search-input" placeholder="例: Suzuki 2024" />
         <p id="search-message" class="message">タイトル、著者、雑誌名で検索できます。</p>
         <div id="search-results" class="list"></div>
+      </section>
+
+      <section id="library-card" class="card hidden">
+        <div class="inline-row start">
+          <div>
+            <h2>文献一覧</h2>
+            <p id="library-message" class="message">通常は閉じたままにして、必要なときだけ開けます。</p>
+          </div>
+          <button id="library-toggle-button" class="toggle-button" type="button">一覧を開く</button>
+        </div>
+        <div id="library-panel" class="collapsible hidden">
+          <div id="library-results" class="list"></div>
+        </div>
       </section>
 
       <section id="citation-card" class="card hidden">
