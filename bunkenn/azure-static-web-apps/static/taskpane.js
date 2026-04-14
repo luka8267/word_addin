@@ -70,7 +70,14 @@
   async function fetchJson(url, init) {
     const response = await fetch(url, init || {});
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      let detail = "";
+      try {
+        const payload = await response.json();
+        detail = payload && payload.error ? ` - ${payload.error}` : "";
+      } catch (error) {
+        detail = "";
+      }
+      throw new Error(`API request failed: ${response.status}${detail}`);
     }
     return response.json();
   }
