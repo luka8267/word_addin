@@ -121,6 +121,17 @@
     refreshBibliographyButton.disabled = disabled;
   }
 
+  function addPaperIdToCitation(citation, paperId) {
+    const nextPaperIds = Array.isArray(citation.paperIds)
+      ? citation.paperIds.map(String)
+      : [];
+    const normalizedPaperId = String(paperId);
+    if (!nextPaperIds.includes(normalizedPaperId)) {
+      nextPaperIds.push(normalizedPaperId);
+    }
+    citation.paperIds = nextPaperIds;
+  }
+
   async function insertSelectedPaperCitation(paper) {
     if (!paper) {
       setStatus("先に文献を選んでください。");
@@ -132,23 +143,40 @@
       const documentState = await loadDocumentState();
       await Word.run(async function (context) {
         const selection = context.document.getSelection();
-        const insertedRange = selection.insertText(formatReferenceLabel((documentState.citations || []).length + 1), Word.InsertLocation.replace);
-        const control = insertedRange.insertContentControl();
-        control.tag = CITATION_TAG;
-        control.title = "bunken citation";
-        control.font.superscript = true;
-        context.load(control, "id");
+        const parentControl = selection.parentContentControlOrNullObject;
+        context.load(parentControl, "id,tag");
         await context.sync();
 
-        documentState.citations.push({
-          citationId: buildCitationId(),
-          controlId: control.id,
-          paperIds: [paper.id],
-          style: STYLE,
-          locator: locatorInput.value.trim() || undefined,
-          renderedText: "",
-          referenceNumber: null,
-        });
+        if (!parentControl.isNullObject && parentControl.tag === CITATION_TAG) {
+          const citation = documentState.citations.find(function (item) {
+            return String(item.controlId) === String(parentControl.id);
+          });
+          if (citation) {
+            addPaperIdToCitation(citation, paper.id);
+            if (locatorInput.value.trim()) {
+              citation.locator = locatorInput.value.trim();
+            }
+          }
+        } else {
+          const insertedRange = selection.insertText(formatReferenceLabels([(documentState.citations || []).length + 1]), Word.InsertLocation.replace);
+          const control = insertedRange.insertContentControl();
+          control.tag = CITATION_TAG;
+          control.title = "bunken citation";
+          control.font.superscript = true;
+          context.load(control, "id");
+          await context.sync();
+
+          documentState.citations.push({
+            citationId: buildCitationId(),
+            controlId: control.id,
+            paperIds: [paper.id],
+            style: STYLE,
+            locator: locatorInput.value.trim() || undefined,
+            renderedText: "",
+            referenceNumber: null,
+            referenceNumbers: [],
+          });
+        }
 
         await renumberCitationsInContext(context, documentState);
         await context.sync();
@@ -253,6 +281,7 @@
       locator: citation.locator || undefined,
       renderedText: citation.renderedText || "",
       referenceNumber: citation.referenceNumber || null,
+      referenceNumbers: Array.isArray(citation.referenceNumbers) ? citation.referenceNumbers : [],
     };
   }
 
@@ -266,6 +295,33 @@
 
   function formatReferenceLabel(referenceNumber) {
     return `${referenceNumber})`;
+  }
+
+  function formatReferenceLabels(referenceNumbers) {
+    const numbers = Array.from(new Set((referenceNumbers || []).map(Number).filter(Boolean)))
+      .sort(function (left, right) { return left - right; });
+    if (numbers.length === 0) {
+      return "";
+    }
+
+    const ranges = [];
+    let start = numbers[0];
+    let end = numbers[0];
+    for (let index = 1; index < numbers.length; index += 1) {
+      const current = numbers[index];
+      if (current === end + 1) {
+        end = current;
+      } else {
+        ranges.push([start, end]);
+        start = current;
+        end = current;
+      }
+    }
+    ranges.push([start, end]);
+
+    return ranges.map(function (range) {
+      return range[0] === range[1] ? `${range[0]})` : `${range[0]})-${range[1]})`;
+    }).join(",");
   }
 
   function mapCitationsByControlId(citations) {
@@ -285,7 +341,6 @@
   function applyCitationFormatting(control, referenceLabel) {
     control.insertText(referenceLabel, Word.InsertLocation.replace);
     control.font.superscript = true;
-    control.appearance = "BoundingBox";
   }
 
   function renumberCitationsInContext(context, documentState) {
@@ -304,13 +359,15 @@
         if (!citation || !citation.paperIds.length) {
           return;
         }
-        const primaryPaperId = citation.paperIds[0];
-        if (!seenPaperIds.has(primaryPaperId)) {
-          seenPaperIds.set(primaryPaperId, seenPaperIds.size + 1);
-          orderedPaperIds.push(primaryPaperId);
-        }
-        citation.referenceNumber = seenPaperIds.get(primaryPaperId);
-        citation.renderedText = formatReferenceLabel(citation.referenceNumber);
+        citation.referenceNumbers = citation.paperIds.map(function (paperId) {
+          if (!seenPaperIds.has(paperId)) {
+            seenPaperIds.set(paperId, seenPaperIds.size + 1);
+            orderedPaperIds.push(paperId);
+          }
+          return seenPaperIds.get(paperId);
+        });
+        citation.referenceNumber = citation.referenceNumbers[0] || null;
+        citation.renderedText = formatReferenceLabels(citation.referenceNumbers);
         citation.style = STYLE;
         applyCitationFormatting(control, citation.renderedText);
         nextCitations.push(citation);
