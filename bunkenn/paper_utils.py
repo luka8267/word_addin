@@ -92,6 +92,10 @@ def make_word_citation(row, style="APA"):
         citation = f"{authors} ({year}). {title}. {journal}."
         if doi:
             citation += f" https://doi.org/{doi}"
+    elif style == "ACS":
+        citation = f"{authors}. {title}. {journal} {year}."
+        if doi:
+            citation += f" https://doi.org/{doi}"
     elif style == "Vancouver":
         citation = f"{authors}. {title}. {journal}. {year}."
         if doi:
@@ -100,6 +104,10 @@ def make_word_citation(row, style="APA"):
         citation = f"{authors} {title}. {journal} ({year})."
         if doi:
             citation += f" https://doi.org/{doi}"
+    elif style == "IEEE":
+        citation = f'{authors}, "{title}," {journal}, {year}.'
+        if doi:
+            citation += f" doi:{doi}"
     else:
         citation = f"{authors} ({year}). {title}. {journal}."
 

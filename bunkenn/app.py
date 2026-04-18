@@ -37,7 +37,7 @@ from paper_utils import (
 DOI_FORM_FIELDS = ("title", "authors", "journal", "year")
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-BIBLIOGRAPHY_STYLES = ["APA", "Vancouver", "Nature"]
+BIBLIOGRAPHY_STYLES = ["Vancouver", "APA", "ACS", "Nature", "IEEE"]
 
 supabase: Client = build_supabase_client(SUPABASE_URL, SUPABASE_KEY)
 

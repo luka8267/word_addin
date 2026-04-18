@@ -9,7 +9,7 @@ from shared.data_access import fetch_papers_by_ids, resolve_request_context
 def main(req: func.HttpRequest) -> func.HttpResponse:
     payload = req.get_json()
     items = payload.get("items", [])
-    style = payload.get("style", "apa")
+    style = payload.get("style", "vancouver")
     paper_ids = [str(item.get("paperId")) for item in items]
     papers = fetch_papers_by_ids(resolve_request_context(req), paper_ids)
 

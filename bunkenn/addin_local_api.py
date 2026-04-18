@@ -106,8 +106,9 @@ def fetch_papers_by_ids(user_id: int, paper_ids: list[str]) -> list[PaperSummary
 
 
 def build_in_text_citation(paper: PaperSummary, style: str, locator: str | None = None) -> str:
+    normalized_style = normalize_style(style)
     lead_author = first_author_label(paper.authors)
-    if style == "vancouver":
+    if normalized_style in {"vancouver", "acs", "nature", "ieee"}:
         locator_part = f", {locator}" if locator else ""
         return f"[{paper.id}{locator_part}]"
 
@@ -116,11 +117,23 @@ def build_in_text_citation(paper: PaperSummary, style: str, locator: str | None 
 
 
 def build_bibliography_entry(paper: PaperSummary, style: str) -> str:
-    if style == "vancouver":
+    normalized_style = normalize_style(style)
+    if normalized_style == "ieee":
+        return f'{paper.authors}, "{paper.title}," {paper.journal}, {paper.year}.'
+    if normalized_style == "acs":
+        return f"{paper.authors}. {paper.title}. {paper.journal} {paper.year}."
+    if normalized_style == "vancouver":
         return f"{paper.authors}. {paper.title}. {paper.journal}. {paper.year}."
-    if style == "nature":
+    if normalized_style == "nature":
         return f"{paper.authors} {paper.title}. {paper.journal} ({paper.year})."
     return f"{paper.authors} ({paper.year}). {paper.title}. {paper.journal}."
+
+
+def normalize_style(style: str) -> str:
+    normalized = (style or "").strip().lower()
+    if normalized in {"vancouver", "apa", "acs", "nature", "ieee"}:
+        return normalized
+    return "vancouver"
 
 
 def first_author_label(authors: str) -> str:
@@ -167,7 +180,7 @@ class AddinApiHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/addin/citations/format":
             items = payload.get("items", [])
-            style = payload.get("style", "apa")
+            style = payload.get("style", "vancouver")
             paper_ids = [str(item.get("paperId")) for item in items]
             papers = fetch_papers_by_ids(resolve_user_id(), paper_ids)
             rendered_items = []
@@ -192,13 +205,13 @@ class AddinApiHandler(BaseHTTPRequestHandler):
             return
 
         if parsed.path == "/api/addin/bibliography/format":
-            style = payload.get("style", "apa")
+            style = payload.get("style", "vancouver")
             paper_ids = [str(paper_id) for paper_id in payload.get("paperIds", [])]
             unique_ids = list(dict.fromkeys(paper_ids))
             papers = fetch_papers_by_ids(resolve_user_id(), unique_ids)
             self.write_json(
                 {
-                    "title": "References" if style in {"apa", "nature"} else "Bibliography",
+                    "title": "References",
                     "entries": [build_bibliography_entry(paper, style) for paper in papers],
                 }
             )
