@@ -369,6 +369,36 @@
     });
   }
 
+  function escapeHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function preserveSubSupHtml(value) {
+    const tokens = [];
+    const tokenized = String(value || "").replace(/<\/?(sub|sup)>/gi, function (tag) {
+      const token = `__BUNKEN_INLINE_TAG_${tokens.length}__`;
+      tokens.push(tag.toLowerCase());
+      return token;
+    });
+    let escaped = escapeHtml(tokenized);
+    tokens.forEach(function (tag, index) {
+      escaped = escaped.replace(`__BUNKEN_INLINE_TAG_${index}__`, tag);
+    });
+    return escaped;
+  }
+
+  function buildBibliographyHtml(title, entries) {
+    const entryHtml = (entries || []).map(function (entry) {
+      return `<p>${preserveSubSupHtml(entry)}</p>`;
+    }).join("");
+    return `<p><strong>${escapeHtml(title)}</strong></p>${entryHtml || "<p></p>"}`;
+  }
+
   function shouldSuperscriptStyle(style) {
     return ["vancouver", "acs", "nature"].includes(normalizeStyleName(style));
   }
@@ -507,13 +537,13 @@
       await context.sync();
 
       const existing = controls.items.find(function (item) { return item.tag === BIBLIOGRAPHY_TAG; });
-      const content = `${bibliography.title}\n\n${numberedEntries.join("\n")}`;
+      const htmlContent = buildBibliographyHtml(bibliography.title, numberedEntries);
       if (existing) {
-        existing.insertText(content, Word.InsertLocation.replace);
+        existing.insertHtml(htmlContent, Word.InsertLocation.replace);
         documentState.bibliographyControlId = existing.id;
       } else {
         const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
-        const range = bodyEnd.insertText(`\n\n${content}`, Word.InsertLocation.after);
+        const range = bodyEnd.insertHtml(`<br />${htmlContent}`, Word.InsertLocation.after);
         const control = range.insertContentControl();
         control.tag = BIBLIOGRAPHY_TAG;
         control.title = "bunken bibliography";
