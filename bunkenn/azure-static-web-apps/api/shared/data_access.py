@@ -175,9 +175,9 @@ def resolve_request_context(req: func.HttpRequest) -> dict[str, str]:
 
 
 def supabase_request_auth(context: dict[str, str]) -> dict[str, str | None]:
-    # User identity is resolved and verified before paper queries. Query the
-    # compatibility view with the server key plus an explicit user_id filter so
-    # PostgREST does not reject stale client JWTs during library reads.
+    access_token = context.get("access_token") or ""
+    if access_token:
+        return {"api_key": SUPABASE_PUBLIC_KEY, "bearer_token": access_token}
     return {"api_key": SUPABASE_ADMIN_KEY, "bearer_token": None}
 
 
