@@ -2,12 +2,18 @@ import json
 
 import azure.functions as func
 
-from shared.data_access import build_auth_diagnostics, resolve_request_context
+from shared.data_access import (
+    build_auth_diagnostics,
+    debug_endpoints_enabled,
+    resolve_request_context,
+)
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         if req.params.get("_debug") == "env":
+            if not debug_endpoints_enabled():
+                return func.HttpResponse("Not found", status_code=404)
             return func.HttpResponse(
                 json.dumps(build_auth_diagnostics(req)),
                 mimetype="application/json",
