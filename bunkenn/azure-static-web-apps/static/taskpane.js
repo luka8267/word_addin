@@ -279,6 +279,15 @@
       } catch (error) {
         detail = "";
       }
+      if (/bad_jwt|invalid JWT|token signature is invalid/i.test(detail)) {
+        saveAuthState(null);
+        state.results = [];
+        state.libraryResults = [];
+        state.selectedPaper = null;
+        renderResults();
+        renderLibraryResults();
+        throw new Error("ログイン情報が古くなっています。もう一度ログインしてください。");
+      }
       throw new Error(`API request failed: ${response.status}${detail}`);
     }
     return response.json();
