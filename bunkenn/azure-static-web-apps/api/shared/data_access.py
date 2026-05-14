@@ -47,6 +47,17 @@ def extract_supabase_ref_from_url(url: str) -> str:
     return ""
 
 
+def is_supabase_access_token(token: str) -> bool:
+    payload = decode_jwt_payload_unverified(token)
+    issuer = payload.get("iss", "") or ""
+    return bool(
+        token
+        and issuer
+        and extract_supabase_ref_from_url(issuer)
+        == extract_supabase_ref_from_url(SUPABASE_URL)
+    )
+
+
 def build_auth_diagnostics(req: func.HttpRequest) -> dict:
     token = extract_bearer_token(req)
     payload = decode_jwt_payload_unverified(token)
@@ -117,7 +128,9 @@ def paper_from_mapping(item: dict) -> PaperSummary:
 def extract_bearer_token(req: func.HttpRequest) -> str:
     auth_header = req.headers.get("authorization", "")
     if auth_header.lower().startswith("bearer "):
-        return auth_header[7:].strip()
+        token = auth_header[7:].strip()
+        if is_supabase_access_token(token):
+            return token
     return ""
 
 
