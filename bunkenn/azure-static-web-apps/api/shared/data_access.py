@@ -62,6 +62,7 @@ def build_auth_diagnostics(req: func.HttpRequest) -> dict:
     token = extract_bearer_token(req)
     payload = decode_jwt_payload_unverified(token)
     issuer = payload.get("iss", "") or ""
+    custom_token = (req.headers.get("x-bunken-access-token") or "").strip()
     return {
         "supabaseUrlHost": urlparse(SUPABASE_URL).hostname or "",
         "supabaseUrlRef": extract_supabase_ref_from_url(SUPABASE_URL),
@@ -86,6 +87,8 @@ def build_auth_diagnostics(req: func.HttpRequest) -> dict:
             else ""
         ),
         "tokenPresent": bool(token),
+        "customTokenPresent": bool(custom_token),
+        "authorizationHeaderPresent": bool(req.headers.get("authorization", "")),
         "tokenIssuer": issuer,
         "tokenIssuerRef": extract_supabase_ref_from_url(issuer),
         "tokenRole": payload.get("role", ""),
@@ -126,6 +129,10 @@ def paper_from_mapping(item: dict) -> PaperSummary:
 
 
 def extract_bearer_token(req: func.HttpRequest) -> str:
+    custom_token = (req.headers.get("x-bunken-access-token") or "").strip()
+    if is_supabase_access_token(custom_token):
+        return custom_token
+
     auth_header = req.headers.get("authorization", "")
     if auth_header.lower().startswith("bearer "):
         token = auth_header[7:].strip()
