@@ -148,7 +148,7 @@ def build_context_from_token(access_token: str) -> dict[str, str]:
 
 
 def build_default_context() -> dict[str, str]:
-    if DEFAULT_USER_ID:
+    if DEFAULT_USER_ID and not use_supabase():
         return {
             "access_token": "",
             "userId": DEFAULT_USER_ID,
@@ -184,7 +184,9 @@ def supabase_request_auth(context: dict[str, str]) -> dict[str, str | None]:
 def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary]:
     user_id = context.get("userId", "")
 
-    if use_supabase() and user_id and (context.get("access_token") or SUPABASE_ADMIN_KEY):
+    if use_supabase():
+        if not user_id or not context.get("access_token"):
+            raise PermissionError("Authentication required")
         normalized_query = (query or "").strip()
         params = {
             "select": "id,title,authors,journal,year,doi,user_id",
@@ -257,7 +259,9 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
     user_id = context.get("userId", "")
     csv_ids = ",".join(paper_ids)
 
-    if use_supabase() and user_id and (context.get("access_token") or SUPABASE_ADMIN_KEY):
+    if use_supabase():
+        if not user_id or not context.get("access_token"):
+            raise PermissionError("Authentication required")
         auth = supabase_request_auth(context)
         rows = request_supabase(
             "/rest/v1/paper_items_view",

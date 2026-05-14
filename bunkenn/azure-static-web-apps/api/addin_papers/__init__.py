@@ -15,8 +15,9 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             status_code=200,
         )
     except Exception as error:
+        status_code = 401 if isinstance(error, PermissionError) else 500
         return func.HttpResponse(
             json.dumps({"error": str(error)}),
             mimetype="application/json",
-            status_code=500,
+            status_code=status_code,
         )
