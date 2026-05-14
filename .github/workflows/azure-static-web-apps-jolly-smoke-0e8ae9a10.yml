@@ -57,9 +57,16 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    env:
+      AZURE_STATIC_WEB_APPS_API_TOKEN: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_JOLLY_SMOKE_0E8AE9A10 }}
     steps:
       - name: Close Pull Request
+        if: ${{ env.AZURE_STATIC_WEB_APPS_API_TOKEN != '' }}
         id: closepullrequest
         uses: Azure/static-web-apps-deploy@v1
         with:
+          azure_static_web_apps_api_token: ${{ env.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           action: "close"
+      - name: Skip close when token is unavailable
+        if: ${{ env.AZURE_STATIC_WEB_APPS_API_TOKEN == '' }}
+        run: echo "Azure Static Web Apps deployment token is unavailable in this workflow context; skipping close."
