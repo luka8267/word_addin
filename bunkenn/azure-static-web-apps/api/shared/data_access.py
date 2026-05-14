@@ -23,6 +23,11 @@ SUPABASE_PUBLIC_KEY = (
     or os.getenv("SUPABASE_ANON_KEY")
     or SUPABASE_ADMIN_KEY
 )
+DEBUG_ENDPOINTS_ENABLED = os.getenv("BUNKEN_ENABLE_DEBUG_ENDPOINTS", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 SAMPLE_DATA_PATH = Path(__file__).resolve().with_name("sample_papers.json")
 
 
@@ -56,6 +61,10 @@ def is_supabase_access_token(token: str) -> bool:
         and extract_supabase_ref_from_url(issuer)
         == extract_supabase_ref_from_url(SUPABASE_URL)
     )
+
+
+def debug_endpoints_enabled() -> bool:
+    return DEBUG_ENDPOINTS_ENABLED
 
 
 def build_auth_diagnostics(req: func.HttpRequest) -> dict:

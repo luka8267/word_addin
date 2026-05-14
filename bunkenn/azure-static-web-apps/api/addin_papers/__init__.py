@@ -2,12 +2,14 @@ import json
 
 import azure.functions as func
 
-from shared.data_access import resolve_request_context, search_user_papers
+from shared.data_access import debug_endpoints_enabled, resolve_request_context, search_user_papers
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
         if req.params.get("_debug") == "version":
+            if not debug_endpoints_enabled():
+                return func.HttpResponse("Not found", status_code=404)
             return func.HttpResponse(
                 json.dumps({"version": "require-auth-for-supabase-papers-v2"}),
                 mimetype="application/json",
