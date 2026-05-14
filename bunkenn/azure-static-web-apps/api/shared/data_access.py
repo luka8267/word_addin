@@ -1,9 +1,10 @@
+import base64
 import json
 import os
 import sqlite3
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import azure.functions as func
@@ -23,6 +24,62 @@ SUPABASE_PUBLIC_KEY = (
     or SUPABASE_ADMIN_KEY
 )
 SAMPLE_DATA_PATH = Path(__file__).resolve().with_name("sample_papers.json")
+
+
+def decode_jwt_payload_unverified(token: str) -> dict:
+    parts = (token or "").split(".")
+    if len(parts) < 2:
+        return {}
+    payload = parts[1]
+    payload += "=" * (-len(payload) % 4)
+    try:
+        decoded = base64.urlsafe_b64decode(payload.encode("utf-8"))
+        value = json.loads(decoded.decode("utf-8"))
+        return value if isinstance(value, dict) else {}
+    except Exception:
+        return {}
+
+
+def extract_supabase_ref_from_url(url: str) -> str:
+    hostname = urlparse(url or "").hostname or ""
+    if hostname.endswith(".supabase.co"):
+        return hostname.split(".", maxsplit=1)[0]
+    return ""
+
+
+def build_auth_diagnostics(req: func.HttpRequest) -> dict:
+    token = extract_bearer_token(req)
+    payload = decode_jwt_payload_unverified(token)
+    issuer = payload.get("iss", "") or ""
+    return {
+        "supabaseUrlHost": urlparse(SUPABASE_URL).hostname or "",
+        "supabaseUrlRef": extract_supabase_ref_from_url(SUPABASE_URL),
+        "hasSupabaseAnonKey": bool(os.getenv("SUPABASE_ANON_KEY")),
+        "hasSupabasePublishableKey": bool(os.getenv("SUPABASE_PUBLISHABLE_KEY")),
+        "hasSupabaseServiceRoleKey": bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY")),
+        "hasSupabaseKey": bool(os.getenv("SUPABASE_KEY")),
+        "publicKeySource": (
+            "SUPABASE_PUBLISHABLE_KEY"
+            if os.getenv("SUPABASE_PUBLISHABLE_KEY")
+            else "SUPABASE_ANON_KEY"
+            if os.getenv("SUPABASE_ANON_KEY")
+            else "SUPABASE_ADMIN_KEY"
+            if SUPABASE_ADMIN_KEY
+            else ""
+        ),
+        "adminKeySource": (
+            "SUPABASE_KEY"
+            if os.getenv("SUPABASE_KEY")
+            else "SUPABASE_SERVICE_ROLE_KEY"
+            if os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+            else ""
+        ),
+        "tokenPresent": bool(token),
+        "tokenIssuer": issuer,
+        "tokenIssuerRef": extract_supabase_ref_from_url(issuer),
+        "tokenRole": payload.get("role", ""),
+        "tokenSubjectPresent": bool(payload.get("sub")),
+    }
 
 
 def load_sample_papers() -> list[PaperSummary]:
