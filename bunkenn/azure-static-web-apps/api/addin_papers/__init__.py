@@ -7,6 +7,12 @@ from shared.data_access import resolve_request_context, search_user_papers
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        if req.params.get("_debug") == "version":
+            return func.HttpResponse(
+                json.dumps({"version": "require-auth-for-supabase-papers-v2"}),
+                mimetype="application/json",
+                status_code=200,
+            )
         query = req.params.get("q", "")
         papers = search_user_papers(resolve_request_context(req), query)
         return func.HttpResponse(
