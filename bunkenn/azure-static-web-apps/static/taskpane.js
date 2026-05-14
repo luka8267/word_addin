@@ -6,7 +6,8 @@
   const DEFAULT_STYLE = "vancouver";
   const SUPPORTED_STYLES = new Set(["vancouver", "apa", "acs", "nature", "ieee"]);
   const NUMERIC_STYLES = new Set(["vancouver", "acs", "nature", "ieee"]);
-  const AUTH_STORAGE_KEY = "bunkenWordAuthV2";
+  const AUTH_STORAGE_KEY = "bunkenWordAuthV3";
+  const LEGACY_AUTH_STORAGE_KEYS = ["bunkenWordAuth", "bunkenWordAuthV2"];
 
   const state = {
     isReady: false,
@@ -50,6 +51,9 @@
 
   function loadAuthState() {
     try {
+      LEGACY_AUTH_STORAGE_KEYS.forEach(function (key) {
+        localStorage.removeItem(key);
+      });
       return JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY) || "null");
     } catch (error) {
       return null;
