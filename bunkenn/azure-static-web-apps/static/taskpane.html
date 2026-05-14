@@ -20,6 +20,7 @@
         --selected: #e0f2fe;
       }
       * { box-sizing: border-box; }
+      .hidden { display: none; }
       body {
         margin: 0;
         min-height: 100vh;
@@ -34,7 +35,6 @@
       .badge { padding: 6px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #fde68a; }
       .badge.ready { background: #d9f99d; }
       .card { margin-bottom: 14px; padding: 16px; border-radius: 18px; background: var(--card); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
-      .card.hidden { display: none; }
       h2 { margin: 0 0 10px; font-size: 17px; }
       input, select {
         width: 100%;
@@ -57,6 +57,9 @@
       .citation-label { font-size: 13px; font-weight: 700; color: #102a43; }
       .citation-ref { font-size: 12px; color: var(--primary); font-weight: 700; }
       .citation-paper { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+      .sync-issues { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; font-size: 12px; }
+      .sync-issues.hidden { display: none; }
+      .sync-issue { display: block; margin-top: 4px; }
       .button { width: 100%; padding: 12px; border-radius: 999px; border: none; font-weight: 700; cursor: pointer; }
       .button.primary { background: var(--primary); color: #fff; }
       .button.secondary { border: 1px solid #1f2937; background: var(--secondary); color: var(--secondary-text); }
@@ -158,8 +161,13 @@
             <h2>この文書の引用</h2>
             <p id="document-citations-message" class="message">文書内で使っている文献を表示します。</p>
           </div>
-          <button id="refresh-document-citations-button" class="toggle-button" type="button">更新</button>
+          <div>
+            <button id="check-document-citations-button" class="toggle-button" type="button">チェック</button>
+            <button id="refresh-document-citations-button" class="toggle-button" type="button">更新</button>
+          </div>
         </div>
+        <div id="document-sync-issues" class="sync-issues hidden"></div>
+        <button id="repair-document-citations-button" class="button secondary hidden" type="button">引用同期を修復</button>
         <div id="document-citations-list" class="list"></div>
       </section>
 
