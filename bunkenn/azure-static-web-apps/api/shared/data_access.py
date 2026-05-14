@@ -408,6 +408,93 @@ def _citation_item_payload(item: dict) -> dict:
     }
 
 
+def _paper_map_for_ids(context: dict[str, str], paper_ids: list[str]) -> dict[str, PaperSummary]:
+    unique_ids = list(dict.fromkeys(str(paper_id) for paper_id in paper_ids if paper_id))
+    return {paper.id: paper for paper in fetch_papers_by_ids(context, unique_ids)}
+
+
+def list_document_citations(context: dict[str, str], word_document_id: str) -> dict:
+    user_id = context.get("userId", "")
+    if not use_supabase():
+        return {"document": None, "citations": []}
+    if not user_id or not context.get("access_token"):
+        raise PermissionError("Authentication required")
+    normalized_document_id = (word_document_id or "").strip()
+    if not normalized_document_id:
+        raise ValueError("wordDocumentId is required")
+
+    auth = supabase_request_auth(context)
+    document_rows = request_supabase(
+        "/rest/v1/documents",
+        query_params={
+            "select": "id,word_document_id,title,citation_style,updated_at",
+            "user_id": f"eq.{user_id}",
+            "word_document_id": f"eq.{normalized_document_id}",
+            "limit": "1",
+        },
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    if not isinstance(document_rows, list) or not document_rows:
+        return {"document": None, "citations": []}
+
+    document = document_rows[0]
+    citation_rows = request_supabase(
+        "/rest/v1/document_citations",
+        query_params={
+            "select": "id,citation_key,word_control_id,citation_items,rendered_text,sort_order,updated_at",
+            "document_id": f"eq.{document['id']}",
+            "order": "sort_order.asc,created_at.asc",
+        },
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    citation_list = citation_rows if isinstance(citation_rows, list) else []
+    paper_ids = []
+    for row in citation_list:
+        for item in row.get("citation_items") or []:
+            paper_id = str(item.get("paperId") or "")
+            if paper_id:
+                paper_ids.append(paper_id)
+    papers_by_id = _paper_map_for_ids(context, paper_ids)
+
+    citations = []
+    for row in citation_list:
+        items = []
+        for item in row.get("citation_items") or []:
+            paper_id = str(item.get("paperId") or "")
+            paper = papers_by_id.get(paper_id)
+            items.append(
+                {
+                    "paperId": paper_id,
+                    "locator": item.get("locator"),
+                    "referenceNumber": item.get("referenceNumber"),
+                    "paper": paper.to_dict() if paper else None,
+                }
+            )
+        citations.append(
+            {
+                "citationId": row.get("citation_key") or "",
+                "controlId": row.get("word_control_id") or "",
+                "renderedText": row.get("rendered_text") or "",
+                "sortOrder": row.get("sort_order") or 0,
+                "updatedAt": row.get("updated_at") or "",
+                "items": items,
+            }
+        )
+
+    return {
+        "document": {
+            "id": document.get("id"),
+            "wordDocumentId": document.get("word_document_id"),
+            "title": document.get("title") or "",
+            "style": document.get("citation_style") or "",
+            "updatedAt": document.get("updated_at") or "",
+        },
+        "citations": citations,
+    }
+
+
 def sync_document_citations(context: dict[str, str], payload: dict) -> dict:
     user_id = context.get("userId", "")
     if not use_supabase():
