@@ -54,6 +54,7 @@
   const insertCitationButton = document.getElementById("insert-citation-button");
   const loadSelectedCitationButton = document.getElementById("load-selected-citation-button");
   const saveCitationLocatorButton = document.getElementById("save-citation-locator-button");
+  const addPaperToCitationButton = document.getElementById("add-paper-to-citation-button");
   const refreshBibliographyButton = document.getElementById("refresh-bibliography-button");
   const documentCitationsMessage = document.getElementById("document-citations-message");
   const documentCitationsList = document.getElementById("document-citations-list");
@@ -161,6 +162,7 @@
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     loadSelectedCitationButton.disabled = disabled;
     saveCitationLocatorButton.disabled = disabled || !state.editingCitationControlId;
+    addPaperToCitationButton.disabled = disabled || !state.editingCitationControlId || !state.selectedPaper;
     refreshBibliographyButton.disabled = disabled;
     refreshDocumentCitationsButton.disabled = disabled;
     checkDocumentCitationsButton.disabled = disabled;
@@ -489,6 +491,50 @@
       ? `編集中: ${updatedCitation.renderedText || "引用"}`
       : "文献を選ぶと本文に引用を挿入できます。";
     setStatus("引用のlocatorを保存しました。");
+  }
+
+  async function addSelectedPaperToEditingCitation() {
+    if (!state.editingCitationControlId) {
+      setStatus("先に本文中の引用を読み込んでください。");
+      return;
+    }
+    if (!state.selectedPaper) {
+      setStatus("追加する文献を先に選んでください。");
+      return;
+    }
+
+    const documentState = await loadDocumentState();
+    const citation = (documentState.citations || []).find(function (item) {
+      return String(item.controlId) === String(state.editingCitationControlId);
+    });
+    if (!citation) {
+      state.editingCitationControlId = "";
+      updateDisabledState();
+      setStatus("編集中の引用が見つかりません。もう一度読み込んでください。");
+      return;
+    }
+
+    const beforeCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
+    addPaperIdToCitation(citation, state.selectedPaper.id);
+    const afterCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
+    if (beforeCount === afterCount) {
+      setStatus("この文献はすでに選択中の引用に含まれています。");
+      return;
+    }
+
+    documentState.style = getCurrentStyle();
+    await refreshCitationsForStyle(documentState);
+    await saveAndSyncDocumentState(documentState);
+    await loadDocumentCitationSummary(documentState);
+    await checkDocumentCitationSync(documentState);
+
+    const updatedCitation = (documentState.citations || []).find(function (item) {
+      return String(item.controlId) === String(state.editingCitationControlId);
+    });
+    selectionMessage.textContent = updatedCitation
+      ? `編集中: ${updatedCitation.renderedText || "引用"}`
+      : "文献を選ぶと本文に引用を挿入できます。";
+    setStatus(`選択中の引用に文献を追加しました: ${state.selectedPaper.title}`);
   }
 
   async function checkDocumentCitationSync(documentState) {
@@ -1177,6 +1223,18 @@
       await saveSelectedCitationLocator();
     } catch (error) {
       setStatus(error && error.message ? error.message : "引用のlocatorを保存できませんでした。");
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  addPaperToCitationButton.addEventListener("click", async function () {
+    setBusy(true);
+    setStatus("選択中の引用に文献を追加しています。");
+    try {
+      await addSelectedPaperToEditingCitation();
+    } catch (error) {
+      setStatus(error && error.message ? error.message : "選択中の引用に文献を追加できませんでした。");
     } finally {
       setBusy(false);
     }
