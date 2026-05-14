@@ -290,8 +290,12 @@
 
     documentCitationsMessage.textContent = `${citations.length} 件の引用を表示しています。`;
     citations.forEach(function (citation, index) {
-      const item = document.createElement("article");
+      const item = document.createElement("button");
+      item.type = "button";
       item.className = "citation-item";
+      item.addEventListener("click", function () {
+        void jumpToDocumentCitation(citation);
+      });
 
       const head = document.createElement("div");
       head.className = "citation-head";
@@ -318,6 +322,45 @@
 
       documentCitationsList.appendChild(item);
     });
+  }
+
+  async function jumpToDocumentCitation(citation) {
+    const controlId = String(citation && citation.controlId ? citation.controlId : "");
+    if (!controlId) {
+      setStatus("この引用の本文位置がまだ記録されていません。");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("本文中の引用へ移動しています。");
+    try {
+      let didSelect = false;
+      await Word.run(async function (context) {
+        const controls = context.document.contentControls;
+        context.load(controls, "items/id,items/tag");
+        await context.sync();
+
+        const control = controls.items.find(function (item) {
+          return item.tag === CITATION_TAG && String(item.id) === controlId;
+        });
+        if (!control) {
+          return;
+        }
+        control.select();
+        didSelect = true;
+        await context.sync();
+      });
+
+      if (didSelect) {
+        setStatus("本文中の引用へ移動しました。");
+      } else {
+        setStatus("本文内で引用が見つかりません。引用一覧を更新してください。");
+      }
+    } catch (error) {
+      setStatus(error && error.message ? error.message : "本文中の引用へ移動できませんでした。");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function fetchJson(url, init) {

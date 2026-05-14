@@ -51,7 +51,8 @@
       .paper-item.selected { border-color: #127fbf; background: var(--selected); }
       .paper-title { display: block; margin-bottom: 6px; font-size: 14px; color: #102a43; }
       .paper-meta { display: block; font-size: 12px; color: var(--muted); }
-      .citation-item { border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 12px; }
+      .citation-item { width: 100%; text-align: left; border-radius: 14px; border: 1px solid var(--line); background: #fff; color: var(--text); padding: 12px; font: inherit; cursor: pointer; }
+      .citation-item:focus { outline: 2px solid #0f766e; outline-offset: 2px; }
       .citation-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 8px; }
       .citation-label { font-size: 13px; font-weight: 700; color: #102a43; }
       .citation-ref { font-size: 12px; color: var(--primary); font-weight: 700; }
