@@ -73,7 +73,7 @@
   function authHeaders(extraHeaders) {
     const headers = Object.assign({}, extraHeaders || {});
     if (state.auth && state.auth.accessToken) {
-      headers.Authorization = `Bearer ${state.auth.accessToken}`;
+      headers["X-Bunken-Access-Token"] = state.auth.accessToken;
     }
     if (state.auth && state.auth.userId) {
       headers["X-Bunken-User-Id"] = state.auth.userId;
