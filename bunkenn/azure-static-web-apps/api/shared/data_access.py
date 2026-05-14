@@ -164,19 +164,27 @@ def build_default_context() -> dict[str, str]:
 
 
 def resolve_request_context(req: func.HttpRequest) -> dict[str, str]:
-    header_context = extract_header_context(req)
-    if header_context:
-        return header_context
     token = extract_bearer_token(req)
     if token and use_supabase():
         return build_context_from_token(token)
+    if not use_supabase():
+        header_context = extract_header_context(req)
+        if header_context:
+            return header_context
     return build_default_context()
+
+
+def supabase_request_auth(context: dict[str, str]) -> dict[str, str | None]:
+    access_token = context.get("access_token") or ""
+    if access_token:
+        return {"api_key": SUPABASE_PUBLIC_KEY, "bearer_token": access_token}
+    return {"api_key": SUPABASE_ADMIN_KEY, "bearer_token": None}
 
 
 def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary]:
     user_id = context.get("userId", "")
 
-    if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
+    if use_supabase() and user_id and (context.get("access_token") or SUPABASE_ADMIN_KEY):
         normalized_query = (query or "").strip()
         params = {
             "select": "id,title,authors,journal,year,doi,user_id",
@@ -190,7 +198,13 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
                 f"authors.ilike.*{escaped_query}*,"
                 f"journal.ilike.*{escaped_query}*)"
             )
-        rows = request_supabase("/rest/v1/papers", query_params=params, api_key=SUPABASE_ADMIN_KEY)
+        auth = supabase_request_auth(context)
+        rows = request_supabase(
+            "/rest/v1/paper_items_view",
+            query_params=params,
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
+        )
         return [paper_from_mapping(row) for row in rows]
 
     if use_sqlite():
@@ -243,15 +257,17 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
     user_id = context.get("userId", "")
     csv_ids = ",".join(paper_ids)
 
-    if use_supabase() and user_id and SUPABASE_ADMIN_KEY:
+    if use_supabase() and user_id and (context.get("access_token") or SUPABASE_ADMIN_KEY):
+        auth = supabase_request_auth(context)
         rows = request_supabase(
-            "/rest/v1/papers",
+            "/rest/v1/paper_items_view",
             query_params={
                 "select": "id,title,authors,journal,year,doi,user_id",
                 "user_id": f"eq.{user_id}",
                 "id": f"in.({csv_ids})",
             },
-            api_key=SUPABASE_ADMIN_KEY,
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
         )
         by_id = {str(row["id"]): paper_from_mapping(row) for row in rows}
         return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
