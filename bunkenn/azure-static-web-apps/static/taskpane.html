@@ -60,6 +60,12 @@
       .sync-issues { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; border: 1px solid #fed7aa; background: #fff7ed; color: #7c2d12; font-size: 12px; }
       .sync-issues.hidden { display: none; }
       .sync-issue { display: block; margin-top: 4px; }
+      .edit-panel { margin-top: 12px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: #fff; }
+      .edit-panel.hidden { display: none; }
+      .edit-title { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: #102a43; }
+      .edit-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+      .edit-row:first-of-type { border-top: none; }
+      .edit-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
       .button { width: 100%; padding: 12px; border-radius: 999px; border: none; font-weight: 700; cursor: pointer; }
       .button.primary { background: var(--primary); color: #fff; }
       .button.secondary { border: 1px solid #1f2937; background: var(--secondary); color: var(--secondary-text); }
@@ -151,6 +157,12 @@
           <button id="load-selected-citation-button" class="toggle-button" type="button">選択中の引用を編集</button>
           <button id="save-citation-locator-button" class="toggle-button" type="button">locatorを保存</button>
         </div>
+        <button id="add-paper-to-citation-button" class="button secondary" type="button">選択文献をこの引用に追加</button>
+        <div id="citation-edit-panel" class="edit-panel hidden">
+          <p id="citation-edit-title" class="edit-title">編集中の引用</p>
+          <div id="citation-edit-items" class="list"></div>
+          <button id="delete-citation-button" class="button ghost" type="button">この引用を削除</button>
+        </div>
       </section>
 
       <section id="bibliography-card" class="card hidden">
@@ -177,6 +189,6 @@
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=edit-locator-v1"></script>
+    <script src="./taskpane.js?v=edit-citation-items-v1"></script>
   </body>
 </html>
