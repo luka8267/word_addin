@@ -147,6 +147,10 @@
         </select>
         <input id="locator-input" placeholder="例: p. 25" />
         <button id="insert-citation-button" class="button primary">本文に引用を挿入</button>
+        <div class="inline-row start" style="margin-top:10px;">
+          <button id="load-selected-citation-button" class="toggle-button" type="button">選択中の引用を編集</button>
+          <button id="save-citation-locator-button" class="toggle-button" type="button">locatorを保存</button>
+        </div>
       </section>
 
       <section id="bibliography-card" class="card hidden">
@@ -173,6 +177,6 @@
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=auth-cache-v3"></script>
+    <script src="./taskpane.js?v=edit-locator-v1"></script>
   </body>
 </html>
