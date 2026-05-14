@@ -3,6 +3,7 @@
   const DOCUMENT_STATE_KEY = "bunkenDocumentState";
   const BIBLIOGRAPHY_TAG = "BUNKEN_BIBLIOGRAPHY";
   const CITATION_TAG = "BUNKEN_CITATION";
+  const DOCUMENT_ID_PREFIX = "bunken_word_";
   const DEFAULT_STYLE = "vancouver";
   const SUPPORTED_STYLES = new Set(["vancouver", "apa", "acs", "nature", "ieee"]);
   const NUMERIC_STYLES = new Set(["vancouver", "acs", "nature", "ieee"]);
@@ -208,8 +209,12 @@
 
       });
       await refreshCitationsForStyle(documentState);
-      await saveDocumentState(documentState);
-      setStatus(`引用を挿入しました: ${paper.title}`);
+      const syncResult = await saveAndSyncDocumentState(documentState);
+      setStatus(
+        syncResult && syncResult.synced === false
+          ? `引用を挿入しました（DB同期は未完了）: ${paper.title}`
+          : `引用を挿入しました: ${paper.title}`
+      );
     } catch (error) {
       setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
     } finally {
@@ -297,9 +302,24 @@
     return `cit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
+  function buildWordDocumentId() {
+    return `${DOCUMENT_ID_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function getCurrentDocumentTitle() {
+    const url = Office.context && Office.context.document ? Office.context.document.url : "";
+    if (!url) {
+      return "Word document";
+    }
+    const normalized = String(url).split(/[\\/]/).filter(Boolean).pop() || "";
+    return normalized || "Word document";
+  }
+
   function createEmptyDocumentState() {
     return {
-      version: 2,
+      version: 3,
+      wordDocumentId: buildWordDocumentId(),
+      documentTitle: "Word document",
       style: DEFAULT_STYLE,
       citations: [],
     };
@@ -323,6 +343,8 @@
 
   function normalizeDocumentState(value) {
     const base = Object.assign(createEmptyDocumentState(), value || {});
+    base.wordDocumentId = base.wordDocumentId || buildWordDocumentId();
+    base.documentTitle = base.documentTitle || getCurrentDocumentTitle();
     base.style = normalizeStyleName(base.style);
     base.citations = (base.citations || [])
       .map(normalizeCitationEntry)
@@ -519,6 +541,7 @@
     });
 
     documentState.citations = nextCitations;
+    documentState.documentTitle = getCurrentDocumentTitle();
     documentState.style = activeStyle;
     return {
       orderedPaperIds,
@@ -529,7 +552,7 @@
   async function renumberDocumentCitations() {
     const documentState = await loadDocumentState();
     const numbering = await refreshCitationsForStyle(documentState);
-    await saveDocumentState(documentState);
+    await saveAndSyncDocumentState(documentState);
     return {
       documentState,
       orderedPaperIds: numbering.orderedPaperIds,
@@ -568,7 +591,7 @@
       await context.sync();
     });
 
-    await saveDocumentState(documentState);
+    await saveAndSyncDocumentState(documentState);
     return {
       orderedPaperIds: numbering.orderedPaperIds,
       bibliography,
@@ -598,6 +621,60 @@
         resolve();
       });
     });
+  }
+
+  function buildCitationSyncPayload(documentState) {
+    return {
+      wordDocumentId: documentState.wordDocumentId,
+      title: documentState.documentTitle || getCurrentDocumentTitle(),
+      style: normalizeStyleName(documentState.style),
+      locale: "ja-JP",
+      citations: (documentState.citations || []).map(function (citation, citationIndex) {
+        return {
+          citationId: citation.citationId,
+          controlId: String(citation.controlId || ""),
+          renderedText: citation.renderedText || "",
+          sortOrder: citationIndex + 1,
+          items: (citation.paperIds || []).map(function (paperId, itemIndex) {
+            return {
+              paperId: String(paperId),
+              locator: citation.locator || null,
+              referenceNumber: Array.isArray(citation.referenceNumbers)
+                ? citation.referenceNumbers[itemIndex] || null
+                : citation.referenceNumber || null,
+            };
+          }),
+        };
+      }),
+    };
+  }
+
+  async function syncDocumentCitations(documentState) {
+    if (!(state.auth && state.auth.accessToken)) {
+      return { synced: false, reason: "not_authenticated" };
+    }
+    return fetchJson(`${API_BASE_URL}/api/addin/documents/sync`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(buildCitationSyncPayload(documentState)),
+    });
+  }
+
+  async function saveAndSyncDocumentState(documentState) {
+    documentState.wordDocumentId = documentState.wordDocumentId || buildWordDocumentId();
+    documentState.documentTitle = getCurrentDocumentTitle();
+    await saveDocumentState(documentState);
+    try {
+      return await syncDocumentCitations(documentState);
+    } catch (error) {
+      console.warn("bunken document citation sync failed", error);
+      return {
+        synced: false,
+        error: error && error.message ? error.message : "sync failed",
+      };
+    }
   }
 
   async function searchPapers(query) {
@@ -824,6 +901,9 @@
           state.auth.email = session.email;
           state.auth.username = session.username;
           saveAuthState(state.auth);
+          if ((documentState.citations || []).length > 0) {
+            await saveAndSyncDocumentState(documentState);
+          }
           setStatus("bunkenn に接続しました。");
         } else {
           saveAuthState(null);
