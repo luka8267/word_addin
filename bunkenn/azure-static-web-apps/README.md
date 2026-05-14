@@ -42,6 +42,9 @@ azure-static-web-apps/
     addin_bibliography_format/
       function.json
       __init__.py
+    addin_documents_citations/
+      function.json
+      __init__.py
     addin_documents_sync/
       function.json
       __init__.py

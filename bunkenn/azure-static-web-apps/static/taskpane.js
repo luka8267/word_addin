@@ -17,6 +17,7 @@
     selectedPaper: null,
     results: [],
     libraryResults: [],
+    documentCitations: [],
     isLibraryOpen: false,
     hasLoadedLibrary: false,
     auth: loadAuthState(),
@@ -30,6 +31,7 @@
   const libraryCard = document.getElementById("library-card");
   const citationCard = document.getElementById("citation-card");
   const bibliographyCard = document.getElementById("bibliography-card");
+  const documentCitationsCard = document.getElementById("document-citations-card");
   const emailInput = document.getElementById("email-input");
   const passwordInput = document.getElementById("password-input");
   const loginButton = document.getElementById("login-button");
@@ -49,6 +51,9 @@
   const selectionMessage = document.getElementById("selection-message");
   const insertCitationButton = document.getElementById("insert-citation-button");
   const refreshBibliographyButton = document.getElementById("refresh-bibliography-button");
+  const documentCitationsMessage = document.getElementById("document-citations-message");
+  const documentCitationsList = document.getElementById("document-citations-list");
+  const refreshDocumentCitationsButton = document.getElementById("refresh-document-citations-button");
 
   function loadAuthState() {
     try {
@@ -125,6 +130,7 @@
     libraryCard.classList.toggle("hidden", !isAuthenticated);
     citationCard.classList.toggle("hidden", !isAuthenticated);
     bibliographyCard.classList.toggle("hidden", !isAuthenticated);
+    documentCitationsCard.classList.toggle("hidden", !isAuthenticated);
     userMessage.textContent = isAuthenticated
       ? `${state.auth.username || ""}${state.auth.email ? ` (${state.auth.email})` : ""}`
       : "";
@@ -147,6 +153,7 @@
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     refreshBibliographyButton.disabled = disabled;
+    refreshDocumentCitationsButton.disabled = disabled;
   }
 
   function addPaperIdToCitation(citation, paperId) {
@@ -210,6 +217,7 @@
       });
       await refreshCitationsForStyle(documentState);
       const syncResult = await saveAndSyncDocumentState(documentState);
+      await loadDocumentCitationSummary(documentState);
       setStatus(
         syncResult && syncResult.synced === false
           ? `引用を挿入しました（DB同期は未完了）: ${paper.title}`
@@ -270,6 +278,46 @@
   function renderLibraryState() {
     libraryPanel.classList.toggle("hidden", !state.isLibraryOpen);
     libraryToggleButton.textContent = state.isLibraryOpen ? "一覧を閉じる" : "一覧を開く";
+  }
+
+  function renderDocumentCitations() {
+    documentCitationsList.innerHTML = "";
+    const citations = state.documentCitations || [];
+    if (citations.length === 0) {
+      documentCitationsMessage.textContent = "この文書にはまだ同期済みの引用がありません。";
+      return;
+    }
+
+    documentCitationsMessage.textContent = `${citations.length} 件の引用を表示しています。`;
+    citations.forEach(function (citation, index) {
+      const item = document.createElement("article");
+      item.className = "citation-item";
+
+      const head = document.createElement("div");
+      head.className = "citation-head";
+      const label = document.createElement("span");
+      label.className = "citation-label";
+      label.textContent = `引用 ${index + 1}`;
+      const reference = document.createElement("span");
+      reference.className = "citation-ref";
+      reference.textContent = citation.renderedText || "";
+      head.appendChild(label);
+      head.appendChild(reference);
+      item.appendChild(head);
+
+      (citation.items || []).forEach(function (citationItem) {
+        const paper = citationItem.paper || {};
+        const paperLine = document.createElement("span");
+        paperLine.className = "citation-paper";
+        const locator = citationItem.locator ? ` ${citationItem.locator}` : "";
+        paperLine.textContent = paper.title
+          ? `${paper.title}${locator}`
+          : `${citationItem.paperId}${locator}`;
+        item.appendChild(paperLine);
+      });
+
+      documentCitationsList.appendChild(item);
+    });
   }
 
   async function fetchJson(url, init) {
@@ -662,6 +710,23 @@
     });
   }
 
+  async function fetchDocumentCitations(wordDocumentId) {
+    const url = new URL("/api/addin/documents/citations", API_BASE_URL);
+    url.searchParams.set("wordDocumentId", wordDocumentId);
+    return fetchJson(url.toString(), { method: "GET" });
+  }
+
+  async function loadDocumentCitationSummary(documentState) {
+    if (!(state.auth && state.auth.accessToken)) {
+      state.documentCitations = [];
+      renderDocumentCitations();
+      return;
+    }
+    const response = await fetchDocumentCitations(documentState.wordDocumentId);
+    state.documentCitations = response.citations || [];
+    renderDocumentCitations();
+  }
+
   async function saveAndSyncDocumentState(documentState) {
     documentState.wordDocumentId = documentState.wordDocumentId || buildWordDocumentId();
     documentState.documentTitle = getCurrentDocumentTitle();
@@ -759,6 +824,8 @@
     try {
       const session = await login(emailInput.value.trim(), passwordInput.value);
       saveAuthState(session);
+      const documentState = await loadDocumentState();
+      await loadDocumentCitationSummary(documentState);
       passwordInput.value = "";
       authMessage.textContent = "ログインできました。";
       setStatus("bunkenn にログインしました。");
@@ -773,9 +840,11 @@
   logoutButton.addEventListener("click", function () {
     saveAuthState(null);
     state.results = [];
+    state.documentCitations = [];
     state.selectedPaper = null;
     searchInput.value = "";
     searchResults.innerHTML = "";
+    renderDocumentCitations();
     authMessage.textContent = "bunkenn のアカウントでログインすると、その人の文献だけが表示されます。";
     selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
     setStatus("ログアウトしました。");
@@ -855,6 +924,23 @@
     await insertSelectedPaperCitation(state.selectedPaper);
   });
 
+  refreshDocumentCitationsButton.addEventListener("click", async function () {
+    setBusy(true);
+    documentCitationsMessage.textContent = "この文書の引用を更新しています...";
+    try {
+      const documentState = await loadDocumentState();
+      await saveAndSyncDocumentState(documentState);
+      await loadDocumentCitationSummary(documentState);
+      setStatus("この文書の引用一覧を更新しました。");
+    } catch (error) {
+      const message = error && error.message ? error.message : "この文書の引用一覧の更新に失敗しました。";
+      documentCitationsMessage.textContent = message;
+      setStatus(message);
+    } finally {
+      setBusy(false);
+    }
+  });
+
   styleSelect.addEventListener("change", async function () {
     setBusy(true);
     setStatus("引用スタイルを更新しています。");
@@ -862,6 +948,7 @@
       const documentState = await loadDocumentState();
       documentState.style = getCurrentStyle();
       await updateBibliographyFromState(documentState);
+      await loadDocumentCitationSummary(documentState);
       setStatus("引用スタイルを更新しました。");
     } catch (error) {
       setStatus(error && error.message ? error.message : "引用スタイルの更新に失敗しました。");
@@ -876,6 +963,7 @@
     try {
       const documentState = await loadDocumentState();
       await updateBibliographyFromState(documentState);
+      await loadDocumentCitationSummary(documentState);
       setStatus("参考文献を更新しました。");
     } catch (error) {
       setStatus(error && error.message ? error.message : "参考文献の更新に失敗しました。");
@@ -904,6 +992,7 @@
           if ((documentState.citations || []).length > 0) {
             await saveAndSyncDocumentState(documentState);
           }
+          await loadDocumentCitationSummary(documentState);
           setStatus("bunkenn に接続しました。");
         } else {
           saveAuthState(null);

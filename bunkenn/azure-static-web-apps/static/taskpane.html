@@ -51,6 +51,11 @@
       .paper-item.selected { border-color: #127fbf; background: var(--selected); }
       .paper-title { display: block; margin-bottom: 6px; font-size: 14px; color: #102a43; }
       .paper-meta { display: block; font-size: 12px; color: var(--muted); }
+      .citation-item { border-radius: 14px; border: 1px solid var(--line); background: #fff; padding: 12px; }
+      .citation-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; margin-bottom: 8px; }
+      .citation-label { font-size: 13px; font-weight: 700; color: #102a43; }
+      .citation-ref { font-size: 12px; color: var(--primary); font-weight: 700; }
+      .citation-paper { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
       .button { width: 100%; padding: 12px; border-radius: 999px; border: none; font-weight: 700; cursor: pointer; }
       .button.primary { background: var(--primary); color: #fff; }
       .button.secondary { border: 1px solid #1f2937; background: var(--secondary); color: var(--secondary-text); }
@@ -144,6 +149,17 @@
         <h2>参考文献</h2>
         <p class="message">文書内の引用をもとに、末尾の参考文献ブロックを更新します。</p>
         <button id="refresh-bibliography-button" class="button secondary">参考文献を更新</button>
+      </section>
+
+      <section id="document-citations-card" class="card hidden">
+        <div class="inline-row start">
+          <div>
+            <h2>この文書の引用</h2>
+            <p id="document-citations-message" class="message">文書内で使っている文献を表示します。</p>
+          </div>
+          <button id="refresh-document-citations-button" class="toggle-button" type="button">更新</button>
+        </div>
+        <div id="document-citations-list" class="list"></div>
       </section>
 
       <footer id="status" class="status">Word と接続中です。</footer>
