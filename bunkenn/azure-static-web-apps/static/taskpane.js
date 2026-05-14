@@ -18,6 +18,7 @@
     results: [],
     libraryResults: [],
     documentCitations: [],
+    documentSyncIssues: [],
     isLibraryOpen: false,
     hasLoadedLibrary: false,
     auth: loadAuthState(),
@@ -54,6 +55,9 @@
   const documentCitationsMessage = document.getElementById("document-citations-message");
   const documentCitationsList = document.getElementById("document-citations-list");
   const refreshDocumentCitationsButton = document.getElementById("refresh-document-citations-button");
+  const checkDocumentCitationsButton = document.getElementById("check-document-citations-button");
+  const repairDocumentCitationsButton = document.getElementById("repair-document-citations-button");
+  const documentSyncIssues = document.getElementById("document-sync-issues");
 
   function loadAuthState() {
     try {
@@ -154,6 +158,8 @@
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     refreshBibliographyButton.disabled = disabled;
     refreshDocumentCitationsButton.disabled = disabled;
+    checkDocumentCitationsButton.disabled = disabled;
+    repairDocumentCitationsButton.disabled = disabled || state.documentSyncIssues.length === 0;
   }
 
   function addPaperIdToCitation(citation, paperId) {
@@ -324,6 +330,28 @@
     });
   }
 
+  function renderDocumentSyncIssues() {
+    const issues = state.documentSyncIssues || [];
+    documentSyncIssues.innerHTML = "";
+    documentSyncIssues.classList.toggle("hidden", issues.length === 0);
+    repairDocumentCitationsButton.classList.toggle("hidden", issues.length === 0);
+    if (issues.length === 0) {
+      updateDisabledState();
+      return;
+    }
+
+    const summary = document.createElement("strong");
+    summary.textContent = `${issues.length} 件の同期確認が必要です。`;
+    documentSyncIssues.appendChild(summary);
+    issues.forEach(function (issue) {
+      const line = document.createElement("span");
+      line.className = "sync-issue";
+      line.textContent = issue.message;
+      documentSyncIssues.appendChild(line);
+    });
+    updateDisabledState();
+  }
+
   async function jumpToDocumentCitation(citation) {
     const controlId = String(citation && citation.controlId ? citation.controlId : "");
     if (!controlId) {
@@ -361,6 +389,79 @@
     } finally {
       setBusy(false);
     }
+  }
+
+  async function getCitationControlIdsInDocument() {
+    const ids = [];
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+      controls.items.forEach(function (control) {
+        if (control.tag === CITATION_TAG) {
+          ids.push(String(control.id));
+        }
+      });
+    });
+    return ids;
+  }
+
+  async function checkDocumentCitationSync(documentState) {
+    const citationControlIds = await getCitationControlIdsInDocument();
+    const controls = new Set(citationControlIds);
+    const stateCitations = documentState.citations || [];
+    const stateControlIds = new Set(stateCitations.map(function (citation) {
+      return String(citation.controlId || "");
+    }).filter(Boolean));
+    const stateCitationIds = new Set(stateCitations.map(function (citation) {
+      return String(citation.citationId || "");
+    }).filter(Boolean));
+    const dbCitationIds = new Set((state.documentCitations || []).map(function (citation) {
+      return String(citation.citationId || "");
+    }).filter(Boolean));
+    const issues = [];
+
+    stateCitations.forEach(function (citation) {
+      if (citation.controlId && !controls.has(String(citation.controlId))) {
+        issues.push({
+          type: "missing_word_control",
+          message: `本文から削除された引用があります: ${citation.renderedText || citation.citationId}`,
+        });
+      }
+      if (citation.citationId && !dbCitationIds.has(String(citation.citationId))) {
+        issues.push({
+          type: "missing_db_citation",
+          message: `DBに未同期の引用があります: ${citation.renderedText || citation.citationId}`,
+        });
+      }
+    });
+
+    citationControlIds.forEach(function (controlId) {
+      if (!stateControlIds.has(controlId)) {
+        issues.push({
+          type: "missing_state_citation",
+          message: `本文にはありますが、アドイン状態にない引用があります: control ${controlId}`,
+        });
+      }
+    });
+
+    (state.documentCitations || []).forEach(function (citation) {
+      if (citation.citationId && !stateCitationIds.has(String(citation.citationId))) {
+        issues.push({
+          type: "stale_db_citation",
+          message: `DBに古い引用記録があります: ${citation.renderedText || citation.citationId}`,
+        });
+      } else if (citation.controlId && !controls.has(String(citation.controlId))) {
+        issues.push({
+          type: "db_missing_word_control",
+          message: `DBの引用が本文内に見つかりません: ${citation.renderedText || citation.citationId}`,
+        });
+      }
+    });
+
+    state.documentSyncIssues = issues;
+    renderDocumentSyncIssues();
+    return issues;
   }
 
   async function fetchJson(url, init) {
@@ -762,7 +863,9 @@
   async function loadDocumentCitationSummary(documentState) {
     if (!(state.auth && state.auth.accessToken)) {
       state.documentCitations = [];
+      state.documentSyncIssues = [];
       renderDocumentCitations();
+      renderDocumentSyncIssues();
       return;
     }
     const response = await fetchDocumentCitations(documentState.wordDocumentId);
@@ -884,10 +987,12 @@
     saveAuthState(null);
     state.results = [];
     state.documentCitations = [];
+    state.documentSyncIssues = [];
     state.selectedPaper = null;
     searchInput.value = "";
     searchResults.innerHTML = "";
     renderDocumentCitations();
+    renderDocumentSyncIssues();
     authMessage.textContent = "bunkenn のアカウントでログインすると、その人の文献だけが表示されます。";
     selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
     setStatus("ログアウトしました。");
@@ -974,11 +1079,46 @@
       const documentState = await loadDocumentState();
       await saveAndSyncDocumentState(documentState);
       await loadDocumentCitationSummary(documentState);
+      await checkDocumentCitationSync(documentState);
       setStatus("この文書の引用一覧を更新しました。");
     } catch (error) {
       const message = error && error.message ? error.message : "この文書の引用一覧の更新に失敗しました。";
       documentCitationsMessage.textContent = message;
       setStatus(message);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  checkDocumentCitationsButton.addEventListener("click", async function () {
+    setBusy(true);
+    documentCitationsMessage.textContent = "引用の同期状態を確認しています...";
+    try {
+      const documentState = await loadDocumentState();
+      await loadDocumentCitationSummary(documentState);
+      const issues = await checkDocumentCitationSync(documentState);
+      setStatus(issues.length === 0 ? "引用の同期状態は正常です。" : "引用の同期確認が必要です。");
+    } catch (error) {
+      const message = error && error.message ? error.message : "引用の同期チェックに失敗しました。";
+      documentCitationsMessage.textContent = message;
+      setStatus(message);
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  repairDocumentCitationsButton.addEventListener("click", async function () {
+    setBusy(true);
+    setStatus("引用同期を修復しています。");
+    try {
+      const documentState = await loadDocumentState();
+      await refreshCitationsForStyle(documentState);
+      await saveAndSyncDocumentState(documentState);
+      await loadDocumentCitationSummary(documentState);
+      const issues = await checkDocumentCitationSync(documentState);
+      setStatus(issues.length === 0 ? "引用同期を修復しました。" : "一部の引用は手動確認が必要です。");
+    } catch (error) {
+      setStatus(error && error.message ? error.message : "引用同期の修復に失敗しました。");
     } finally {
       setBusy(false);
     }
