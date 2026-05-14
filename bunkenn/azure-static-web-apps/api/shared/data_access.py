@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
@@ -166,9 +167,10 @@ def request_supabase(
     path: str,
     method: str = "GET",
     query_params: dict[str, str] | None = None,
-    json_body: dict | None = None,
+    json_body: dict | list | None = None,
     bearer_token: str | None = None,
     api_key: str | None = None,
+    prefer: str | None = None,
 ) -> dict | list[dict]:
     query_string = ""
     if query_params:
@@ -184,6 +186,8 @@ def request_supabase(
         headers["Authorization"] = f"Bearer {bearer_token}"
     elif api_key == SUPABASE_ADMIN_KEY and SUPABASE_ADMIN_KEY.startswith("eyJ"):
         headers["Authorization"] = f"Bearer {SUPABASE_ADMIN_KEY}"
+    if prefer:
+        headers["Prefer"] = prefer
     if json_body is not None:
         body = json.dumps(json_body).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -390,3 +394,97 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
 
     by_id = {paper.id: paper for paper in load_sample_papers()}
     return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _citation_item_payload(item: dict) -> dict:
+    return {
+        "paperId": str(item.get("paperId") or ""),
+        "locator": item.get("locator") or None,
+        "referenceNumber": item.get("referenceNumber"),
+    }
+
+
+def sync_document_citations(context: dict[str, str], payload: dict) -> dict:
+    user_id = context.get("userId", "")
+    if not use_supabase():
+        return {"synced": False, "reason": "supabase_not_configured", "citationCount": 0}
+    if not user_id or not context.get("access_token"):
+        raise PermissionError("Authentication required")
+
+    word_document_id = str(payload.get("wordDocumentId") or "").strip()
+    if not word_document_id:
+        raise ValueError("wordDocumentId is required")
+
+    auth = supabase_request_auth(context)
+    now = _utc_now_iso()
+    document_rows = request_supabase(
+        "/rest/v1/documents",
+        method="POST",
+        query_params={"on_conflict": "user_id,word_document_id"},
+        json_body={
+            "user_id": user_id,
+            "word_document_id": word_document_id,
+            "title": str(payload.get("title") or "")[:500],
+            "citation_style": str(payload.get("style") or "vancouver"),
+            "locale": str(payload.get("locale") or "ja-JP"),
+            "updated_at": now,
+        },
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+        prefer="resolution=merge-duplicates,return=representation",
+    )
+    if not isinstance(document_rows, list) or not document_rows:
+        raise RuntimeError("Document sync did not return a document row")
+
+    document_id = str(document_rows[0]["id"])
+    request_supabase(
+        "/rest/v1/document_citations",
+        method="DELETE",
+        query_params={"document_id": f"eq.{document_id}"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+
+    citation_rows = []
+    for index, citation in enumerate(payload.get("citations") or []):
+        citation_key = str(citation.get("citationId") or "").strip()
+        if not citation_key:
+            continue
+        items = [
+            _citation_item_payload(item)
+            for item in citation.get("items", [])
+            if item and item.get("paperId")
+        ]
+        if not items:
+            continue
+        citation_rows.append(
+            {
+                "document_id": document_id,
+                "citation_key": citation_key,
+                "word_control_id": str(citation.get("controlId") or ""),
+                "citation_items": items,
+                "rendered_text": str(citation.get("renderedText") or ""),
+                "sort_order": int(citation.get("sortOrder") or index + 1),
+                "updated_at": now,
+            }
+        )
+
+    if citation_rows:
+        request_supabase(
+            "/rest/v1/document_citations",
+            method="POST",
+            json_body=citation_rows,
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
+            prefer="return=minimal",
+        )
+
+    return {
+        "synced": True,
+        "documentId": document_id,
+        "citationCount": len(citation_rows),
+    }
