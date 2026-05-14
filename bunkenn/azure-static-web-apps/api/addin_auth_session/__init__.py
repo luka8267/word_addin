@@ -2,11 +2,17 @@ import json
 
 import azure.functions as func
 
-from shared.data_access import resolve_request_context
+from shared.data_access import build_auth_diagnostics, resolve_request_context
 
 
 def main(req: func.HttpRequest) -> func.HttpResponse:
     try:
+        if req.params.get("_debug") == "env":
+            return func.HttpResponse(
+                json.dumps(build_auth_diagnostics(req)),
+                mimetype="application/json",
+                status_code=200,
+            )
         context = resolve_request_context(req)
         if not context.get("userId"):
             return func.HttpResponse(
