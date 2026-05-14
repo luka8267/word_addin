@@ -6,7 +6,7 @@
   const DEFAULT_STYLE = "vancouver";
   const SUPPORTED_STYLES = new Set(["vancouver", "apa", "acs", "nature", "ieee"]);
   const NUMERIC_STYLES = new Set(["vancouver", "acs", "nature", "ieee"]);
-  const AUTH_STORAGE_KEY = "bunkenWordAuth";
+  const AUTH_STORAGE_KEY = "bunkenWordAuthV2";
 
   const state = {
     isReady: false,
