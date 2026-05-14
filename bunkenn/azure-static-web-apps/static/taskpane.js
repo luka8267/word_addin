@@ -20,6 +20,7 @@
     documentCitations: [],
     documentSyncIssues: [],
     editingCitationControlId: "",
+    editingCitation: null,
     isLibraryOpen: false,
     hasLoadedLibrary: false,
     auth: loadAuthState(),
@@ -55,6 +56,10 @@
   const loadSelectedCitationButton = document.getElementById("load-selected-citation-button");
   const saveCitationLocatorButton = document.getElementById("save-citation-locator-button");
   const addPaperToCitationButton = document.getElementById("add-paper-to-citation-button");
+  const citationEditPanel = document.getElementById("citation-edit-panel");
+  const citationEditTitle = document.getElementById("citation-edit-title");
+  const citationEditItems = document.getElementById("citation-edit-items");
+  const deleteCitationButton = document.getElementById("delete-citation-button");
   const refreshBibliographyButton = document.getElementById("refresh-bibliography-button");
   const documentCitationsMessage = document.getElementById("document-citations-message");
   const documentCitationsList = document.getElementById("document-citations-list");
@@ -127,6 +132,7 @@
 
   function setBusy(isBusy) {
     state.isBusy = isBusy;
+    renderCitationEditPanel();
     updateDisabledState();
   }
 
@@ -163,6 +169,7 @@
     loadSelectedCitationButton.disabled = disabled;
     saveCitationLocatorButton.disabled = disabled || !state.editingCitationControlId;
     addPaperToCitationButton.disabled = disabled || !state.editingCitationControlId || !state.selectedPaper;
+    deleteCitationButton.disabled = disabled || !state.editingCitationControlId;
     refreshBibliographyButton.disabled = disabled;
     refreshDocumentCitationsButton.disabled = disabled;
     checkDocumentCitationsButton.disabled = disabled;
@@ -291,6 +298,133 @@
   function renderLibraryState() {
     libraryPanel.classList.toggle("hidden", !state.isLibraryOpen);
     libraryToggleButton.textContent = state.isLibraryOpen ? "一覧を閉じる" : "一覧を開く";
+  }
+
+  function findKnownPaper(paperId) {
+    const normalizedPaperId = String(paperId || "");
+    const pools = [state.results, state.libraryResults];
+    for (const papers of pools) {
+      const paper = (papers || []).find(function (item) {
+        return String(item.id) === normalizedPaperId;
+      });
+      if (paper) {
+        return paper;
+      }
+    }
+    for (const citation of state.documentCitations || []) {
+      for (const item of citation.items || []) {
+        if (String(item.paperId) === normalizedPaperId && item.paper) {
+          return item.paper;
+        }
+      }
+    }
+    return null;
+  }
+
+  function paperLabelForId(paperId) {
+    const paper = findKnownPaper(paperId);
+    if (!paper) {
+      return String(paperId || "");
+    }
+    const suffix = paper.year ? ` (${paper.year})` : "";
+    return `${paper.title}${suffix}`;
+  }
+
+  function clearEditingCitation() {
+    state.editingCitationControlId = "";
+    state.editingCitation = null;
+    locatorInput.value = "";
+    renderCitationEditPanel();
+    updateDisabledState();
+  }
+
+  function setEditingCitation(citation) {
+    state.editingCitationControlId = citation ? String(citation.controlId || "") : "";
+    state.editingCitation = citation ? Object.assign({}, citation, {
+      paperIds: Array.isArray(citation.paperIds) ? citation.paperIds.map(String) : [],
+    }) : null;
+    renderCitationEditPanel();
+    updateDisabledState();
+  }
+
+  function renderCitationEditPanel() {
+    citationEditItems.innerHTML = "";
+    const citation = state.editingCitation;
+    citationEditPanel.classList.toggle("hidden", !citation);
+    if (!citation) {
+      return;
+    }
+
+    citationEditTitle.textContent = `編集中: ${citation.renderedText || "引用"}`;
+    (citation.paperIds || []).forEach(function (paperId, index) {
+      const row = document.createElement("div");
+      row.className = "edit-row";
+
+      const label = document.createElement("span");
+      label.className = "citation-paper";
+      label.textContent = paperLabelForId(paperId);
+      row.appendChild(label);
+
+      const actions = document.createElement("div");
+      actions.className = "edit-actions";
+
+      const upButton = document.createElement("button");
+      upButton.type = "button";
+      upButton.className = "toggle-button";
+      upButton.textContent = "上";
+      upButton.disabled = index === 0 || state.isBusy;
+      upButton.addEventListener("click", async function () {
+        setBusy(true);
+        setStatus("引用内の文献順序を変更しています。");
+        try {
+          await moveEditingCitationPaper(index, -1);
+        } catch (error) {
+          setStatus(error && error.message ? error.message : "文献順序を変更できませんでした。");
+        } finally {
+          setBusy(false);
+        }
+      });
+      actions.appendChild(upButton);
+
+      const downButton = document.createElement("button");
+      downButton.type = "button";
+      downButton.className = "toggle-button";
+      downButton.textContent = "下";
+      downButton.disabled = index === (citation.paperIds || []).length - 1 || state.isBusy;
+      downButton.addEventListener("click", async function () {
+        setBusy(true);
+        setStatus("引用内の文献順序を変更しています。");
+        try {
+          await moveEditingCitationPaper(index, 1);
+        } catch (error) {
+          setStatus(error && error.message ? error.message : "文献順序を変更できませんでした。");
+        } finally {
+          setBusy(false);
+        }
+      });
+      actions.appendChild(downButton);
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "toggle-button";
+      removeButton.textContent = "外す";
+      removeButton.disabled = state.isBusy;
+      removeButton.addEventListener("click", async function () {
+        setBusy(true);
+        setStatus("引用から文献を外しています。");
+        try {
+          await removeEditingCitationPaper(index);
+        } catch (error) {
+          setStatus(error && error.message ? error.message : "引用から文献を外せませんでした。");
+        } finally {
+          setBusy(false);
+        }
+      });
+      actions.appendChild(removeButton);
+
+      row.appendChild(actions);
+      citationEditItems.appendChild(row);
+    });
   }
 
   function renderDocumentCitations() {
@@ -430,8 +564,7 @@
   async function loadSelectedCitationForEditing() {
     const controlId = await getSelectedCitationControlId();
     if (!controlId) {
-      state.editingCitationControlId = "";
-      updateDisabledState();
+      clearEditingCitation();
       setStatus("本文中の編集したい引用を選択してください。");
       return null;
     }
@@ -441,18 +574,60 @@
       return String(item.controlId) === controlId;
     });
     if (!citation) {
-      state.editingCitationControlId = "";
-      updateDisabledState();
+      clearEditingCitation();
       setStatus("選択中の引用がアドイン状態に見つかりません。引用同期をチェックしてください。");
       return null;
     }
 
-    state.editingCitationControlId = controlId;
+    setEditingCitation(citation);
     locatorInput.value = citation.locator || "";
     selectionMessage.textContent = `編集中: ${citation.renderedText || "引用"}`;
-    updateDisabledState();
     setStatus("選択中の引用を読み込みました。locatorを編集して保存できます。");
     return citation;
+  }
+
+  function updateEditingCitationFromDocumentState(documentState) {
+    if (!state.editingCitationControlId) {
+      clearEditingCitation();
+      return null;
+    }
+    const citation = (documentState.citations || []).find(function (item) {
+      return String(item.controlId) === String(state.editingCitationControlId);
+    });
+    if (!citation) {
+      clearEditingCitation();
+      selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
+      return null;
+    }
+    setEditingCitation(citation);
+    locatorInput.value = citation.locator || "";
+    selectionMessage.textContent = `編集中: ${citation.renderedText || "引用"}`;
+    return citation;
+  }
+
+  async function applyCitationEdit(mutator) {
+    const documentState = await loadDocumentState();
+    const citation = (documentState.citations || []).find(function (item) {
+      return String(item.controlId) === String(state.editingCitationControlId);
+    });
+    if (!citation) {
+      clearEditingCitation();
+      throw new Error("編集中の引用が見つかりません。もう一度読み込んでください。");
+    }
+    const shouldContinue = mutator(citation, documentState);
+    if (shouldContinue === false) {
+      return { documentState, citation, changed: false };
+    }
+    documentState.style = getCurrentStyle();
+    await refreshCitationsForStyle(documentState);
+    await saveAndSyncDocumentState(documentState);
+    await loadDocumentCitationSummary(documentState);
+    await checkDocumentCitationSync(documentState);
+    return {
+      documentState,
+      citation: updateEditingCitationFromDocumentState(documentState),
+      changed: true,
+    };
   }
 
   async function saveSelectedCitationLocator() {
@@ -461,35 +636,14 @@
       return;
     }
 
-    const documentState = await loadDocumentState();
-    const citation = (documentState.citations || []).find(function (item) {
-      return String(item.controlId) === String(state.editingCitationControlId);
-    });
-    if (!citation) {
-      state.editingCitationControlId = "";
-      updateDisabledState();
-      setStatus("編集中の引用が見つかりません。もう一度読み込んでください。");
-      return;
-    }
-
     const nextLocator = locatorInput.value.trim();
-    if (nextLocator) {
-      citation.locator = nextLocator;
-    } else {
-      delete citation.locator;
-    }
-    documentState.style = getCurrentStyle();
-    await refreshCitationsForStyle(documentState);
-    await saveAndSyncDocumentState(documentState);
-    await loadDocumentCitationSummary(documentState);
-    await checkDocumentCitationSync(documentState);
-
-    const updatedCitation = (documentState.citations || []).find(function (item) {
-      return String(item.controlId) === String(state.editingCitationControlId);
+    await applyCitationEdit(function (citation) {
+      if (nextLocator) {
+        citation.locator = nextLocator;
+      } else {
+        delete citation.locator;
+      }
     });
-    selectionMessage.textContent = updatedCitation
-      ? `編集中: ${updatedCitation.renderedText || "引用"}`
-      : "文献を選ぶと本文に引用を挿入できます。";
     setStatus("引用のlocatorを保存しました。");
   }
 
@@ -503,38 +657,90 @@
       return;
     }
 
-    const documentState = await loadDocumentState();
-    const citation = (documentState.citations || []).find(function (item) {
-      return String(item.controlId) === String(state.editingCitationControlId);
+    const result = await applyCitationEdit(function (citation) {
+      const beforeCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
+      addPaperIdToCitation(citation, state.selectedPaper.id);
+      const afterCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
+      if (beforeCount === afterCount) {
+        return false;
+      }
+      return true;
     });
-    if (!citation) {
-      state.editingCitationControlId = "";
-      updateDisabledState();
-      setStatus("編集中の引用が見つかりません。もう一度読み込んでください。");
-      return;
-    }
-
-    const beforeCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
-    addPaperIdToCitation(citation, state.selectedPaper.id);
-    const afterCount = Array.isArray(citation.paperIds) ? citation.paperIds.length : 0;
-    if (beforeCount === afterCount) {
+    if (!result.changed) {
       setStatus("この文献はすでに選択中の引用に含まれています。");
       return;
     }
+    setStatus(`選択中の引用に文献を追加しました: ${state.selectedPaper.title}`);
+  }
 
-    documentState.style = getCurrentStyle();
+  async function removeEditingCitationPaper(index) {
+    if (!state.editingCitationControlId) {
+      setStatus("先に本文中の引用を読み込んでください。");
+      return;
+    }
+    const result = await applyCitationEdit(function (citation) {
+      const paperIds = Array.isArray(citation.paperIds) ? citation.paperIds.map(String) : [];
+      if (paperIds.length <= 1) {
+        return false;
+      }
+      paperIds.splice(index, 1);
+      citation.paperIds = paperIds;
+      return true;
+    });
+    setStatus(result.changed ? "引用から文献を外しました。" : "最後の文献は外せません。引用全体を削除してください。");
+  }
+
+  async function moveEditingCitationPaper(index, direction) {
+    if (!state.editingCitationControlId) {
+      setStatus("先に本文中の引用を読み込んでください。");
+      return;
+    }
+    const result = await applyCitationEdit(function (citation) {
+      const paperIds = Array.isArray(citation.paperIds) ? citation.paperIds.map(String) : [];
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= paperIds.length) {
+        return false;
+      }
+      const [paperId] = paperIds.splice(index, 1);
+      paperIds.splice(nextIndex, 0, paperId);
+      citation.paperIds = paperIds;
+      return true;
+    });
+    setStatus(result.changed ? "引用内の文献順序を変更しました。" : "文献順序は変更されませんでした。");
+  }
+
+  async function deleteEditingCitation() {
+    const controlId = String(state.editingCitationControlId || "");
+    if (!controlId) {
+      setStatus("先に本文中の引用を読み込んでください。");
+      return;
+    }
+
+    const documentState = await loadDocumentState();
+    documentState.citations = (documentState.citations || []).filter(function (citation) {
+      return String(citation.controlId) !== controlId;
+    });
+
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+      const control = controls.items.find(function (item) {
+        return item.tag === CITATION_TAG && String(item.id) === controlId;
+      });
+      if (control) {
+        control.delete(false);
+        await context.sync();
+      }
+    });
+
     await refreshCitationsForStyle(documentState);
     await saveAndSyncDocumentState(documentState);
     await loadDocumentCitationSummary(documentState);
     await checkDocumentCitationSync(documentState);
-
-    const updatedCitation = (documentState.citations || []).find(function (item) {
-      return String(item.controlId) === String(state.editingCitationControlId);
-    });
-    selectionMessage.textContent = updatedCitation
-      ? `編集中: ${updatedCitation.renderedText || "引用"}`
-      : "文献を選ぶと本文に引用を挿入できます。";
-    setStatus(`選択中の引用に文献を追加しました: ${state.selectedPaper.title}`);
+    clearEditingCitation();
+    selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
+    setStatus("引用を削除しました。");
   }
 
   async function checkDocumentCitationSync(documentState) {
@@ -1120,6 +1326,7 @@
     state.documentCitations = [];
     state.documentSyncIssues = [];
     state.editingCitationControlId = "";
+    state.editingCitation = null;
     state.selectedPaper = null;
     searchInput.value = "";
     searchResults.innerHTML = "";
@@ -1235,6 +1442,18 @@
       await addSelectedPaperToEditingCitation();
     } catch (error) {
       setStatus(error && error.message ? error.message : "選択中の引用に文献を追加できませんでした。");
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  deleteCitationButton.addEventListener("click", async function () {
+    setBusy(true);
+    setStatus("引用を削除しています。");
+    try {
+      await deleteEditingCitation();
+    } catch (error) {
+      setStatus(error && error.message ? error.message : "引用を削除できませんでした。");
     } finally {
       setBusy(false);
     }
