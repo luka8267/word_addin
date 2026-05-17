@@ -622,8 +622,7 @@
       return { documentState, citation, changed: false };
     }
     documentState.style = getCurrentStyle();
-    await refreshCitationsForStyle(documentState);
-    await saveAndSyncDocumentState(documentState);
+    await updateBibliographyFromState(documentState);
     await loadDocumentCitationSummary(documentState);
     await checkDocumentCitationSync(documentState);
     return {
@@ -737,8 +736,7 @@
       }
     });
 
-    await refreshCitationsForStyle(documentState);
-    await saveAndSyncDocumentState(documentState);
+    await updateBibliographyFromState(documentState);
     await loadDocumentCitationSummary(documentState);
     await checkDocumentCitationSync(documentState);
     clearEditingCitation();
