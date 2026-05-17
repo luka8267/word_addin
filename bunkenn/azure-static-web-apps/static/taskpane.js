@@ -356,8 +356,8 @@
     if (!paper) {
       return String(paperId || "");
     }
-    const suffix = paper.year ? ` (${paper.year})` : "";
-    return `${paper.title}${suffix}`;
+    const metadata = formatPaperMetadataLine(paper);
+    return metadata ? `${paper.title} / ${metadata}` : paper.title;
   }
 
   function clearEditingCitation() {
@@ -493,8 +493,9 @@
         const paperLine = document.createElement("span");
         paperLine.className = "citation-paper";
         const locator = citationItem.locator ? ` ${citationItem.locator}` : "";
+        const metadata = paper.title ? formatPaperMetadataLine(paper) : "";
         paperLine.textContent = paper.title
-          ? `${paper.title}${locator}`
+          ? `${paper.title}${locator}${metadata ? ` / ${metadata}` : ""}`
           : `${citationItem.paperId}${locator}`;
         item.appendChild(paperLine);
       });
