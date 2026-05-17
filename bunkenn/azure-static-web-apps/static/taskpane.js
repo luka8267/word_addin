@@ -268,18 +268,17 @@
       const nodes = button.querySelectorAll("strong, span");
       nodes[0].textContent = paper.title;
       nodes[1].textContent = paper.authors;
-      const doiPart = paper.doi ? ` DOI: ${paper.doi}` : "";
-      nodes[2].textContent = `${paper.journal} ${paper.year ? `(${paper.year})` : ""}${doiPart}`;
+      nodes[2].textContent = formatPaperMetadataLine(paper);
       button.addEventListener("click", function () {
         state.selectedPaper = paper;
-        selectionMessage.textContent = `選択中: ${paper.title}`;
+        selectionMessage.textContent = selectedPaperMessage(paper);
         renderResults();
         renderLibraryResults();
         updateDisabledState();
       });
       button.addEventListener("dblclick", function () {
         state.selectedPaper = paper;
-        selectionMessage.textContent = `選択中: ${paper.title}`;
+        selectionMessage.textContent = selectedPaperMessage(paper);
         renderResults();
         renderLibraryResults();
         updateDisabledState();
@@ -287,6 +286,35 @@
       });
       container.appendChild(button);
     }
+  }
+
+  function formatPaperMetadataLine(paper) {
+    const parts = [];
+    const publication = [];
+    if (paper.journal) {
+      publication.push(paper.journal);
+    }
+    if (paper.year) {
+      publication.push(`(${paper.year})`);
+    }
+    if (paper.volume) {
+      publication.push(paper.issue ? `${paper.volume}(${paper.issue})` : String(paper.volume));
+    }
+    if (paper.pages) {
+      publication.push(`pp. ${paper.pages}`);
+    }
+    if (publication.length) {
+      parts.push(publication.join(" "));
+    }
+    if (paper.doi) {
+      parts.push(`DOI: ${paper.doi}`);
+    }
+    return parts.join(" / ");
+  }
+
+  function selectedPaperMessage(paper) {
+    const doiPart = paper.doi ? ` / DOI: ${paper.doi}` : "";
+    return `選択中: ${paper.title}${doiPart}`;
   }
 
   function renderResults() {
