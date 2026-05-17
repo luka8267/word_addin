@@ -994,28 +994,27 @@
   async function collectCitationContextTexts(citations) {
     const contextByControlId = new Map();
     await Word.run(async function (context) {
-      const controls = context.document.contentControls;
-      context.load(controls, "items/id,items/tag");
+      const paragraphs = context.document.body.paragraphs;
+      context.load(paragraphs, "items/text");
       await context.sync();
 
-      const paragraphRefs = [];
-      controls.items.forEach(function (control) {
-        if (control.tag !== CITATION_TAG) {
-          return;
-        }
-        const paragraph = control.getRange().paragraphs.getFirstOrNullObject();
-        context.load(paragraph, "text");
-        paragraphRefs.push({
-          controlId: String(control.id),
+      const paragraphControlRefs = [];
+      paragraphs.items.forEach(function (paragraph) {
+        const controls = paragraph.getRange().contentControls;
+        context.load(controls, "items/id,items/tag");
+        paragraphControlRefs.push({
           paragraph,
+          controls,
         });
       });
       await context.sync();
 
-      paragraphRefs.forEach(function (entry) {
-        if (!entry.paragraph.isNullObject) {
-          contextByControlId.set(entry.controlId, entry.paragraph.text || "");
-        }
+      paragraphControlRefs.forEach(function (entry) {
+        (entry.controls.items || []).forEach(function (control) {
+          if (control.tag === CITATION_TAG) {
+            contextByControlId.set(String(control.id), entry.paragraph.text || "");
+          }
+        });
       });
     });
 
