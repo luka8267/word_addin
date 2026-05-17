@@ -1,18 +1,14 @@
 # Azure Static Web Apps
 
-`bunken Word` を無料寄りでクラウド公開するための雛形です。
+This folder contains the Word add-in static files and the Azure Functions API
+used by the add-in.
 
-構成:
-- `static/`
-  - Word Add-in の静的ファイル
-- `api/`
-  - Azure Functions (Python)
+Published URLs:
 
-公開後の想定URL:
 - `https://<your-app>.azurestaticapps.net/taskpane.html`
 - `https://<your-app>.azurestaticapps.net/api/addin/papers?q=...`
 
-## フォルダ
+## Folder layout
 
 ```text
 azure-static-web-apps/
@@ -50,21 +46,47 @@ azure-static-web-apps/
       __init__.py
 ```
 
-## 方針
+## Local development
 
-- Add-in の静的UIとAPIを同じオリジンに置く
-- Azure Static Web Apps の Free プランを想定
-- API は Azure Functions の HTTP Trigger を使う
-- MVP では `DEFAULT_USER_ID` の固定を残し、後で認証へ置き換える
+1. Copy `api/local.settings.json.example` to `api/local.settings.json`.
+2. Put the same Supabase anon/publishable key used by the Streamlit app in
+   `SUPABASE_PUBLISHABLE_KEY`.
+3. Start the Functions API:
 
-## 次の作業
+```powershell
+cd api
+func start --port 7071 --cors *
+```
 
-1. Azure Static Web Apps に新規アプリを作る
-2. `static/` を静的配信
-3. `api/` を Functions として配信
-4. 公開URLで `generate_manifest.py` を実行
+4. In a second terminal, start the Static Web Apps emulator:
+
+```powershell
+cd ..
+npx -y @azure/static-web-apps-cli start ./static `
+  --api-devserver-url http://localhost:7071 `
+  --port 4280
+```
+
+5. Open `http://localhost:4280/taskpane.html`.
+
+The taskpane and API are same-origin at `localhost:4280`; API requests are
+proxied to the Functions host on `localhost:7071`.
+
+## Design notes
+
+- Keep the add-in UI and API under the same Azure Static Web Apps origin.
+- Use Azure Functions HTTP triggers for the API.
+- Normal login, search, and sync calls use a Supabase anon/publishable key plus
+  the user's access token. Do not use a service-role key for the add-in flow.
+
+## Deployment
+
+1. Create or reuse an Azure Static Web Apps resource.
+2. Deploy `static/` as the app content.
+3. Deploy `api/` as Azure Functions.
+4. Generate the Office manifest with the published Static Web Apps URL.
 
 ## GitHub Actions
 
-Azure 側で GitHub リポジトリ連携を使う場合は、雛形として
-`github-actions-azure-static-web-apps.yml` を使える。
+Use `github-actions-azure-static-web-apps.yml` as the deployment workflow
+template when connecting Azure Static Web Apps to GitHub.

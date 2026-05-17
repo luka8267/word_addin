@@ -40,6 +40,34 @@ Supabase access token. A local `AzureWebJobsStorage` health warning can appear
 when Azurite is not running; the HTTP endpoints above can still be used for
 debugging.
 
+## Local taskpane and API
+
+For the closest local add-in check, run the API with Azure Functions and serve
+the static taskpane through Azure Static Web Apps CLI:
+
+```powershell
+cd bunkenn\azure-static-web-apps\api
+func start --port 7071 --cors *
+```
+
+In a second terminal:
+
+```powershell
+cd bunkenn\azure-static-web-apps
+npx -y @azure/static-web-apps-cli start ./static `
+  --api-devserver-url http://localhost:7071 `
+  --port 4280
+```
+
+Open `http://localhost:4280/taskpane.html`. The taskpane will call
+`http://localhost:4280/api/...`, and SWA CLI proxies those requests to the
+local Functions host.
+
+With Node.js 24, `swa start ./static --api-location ./api` can fail because the
+CLI rejects the Functions Core Tools/Node version combination. Use the
+`--api-devserver-url` flow above unless you switch to a Functions-supported
+Node LTS version.
+
 ## Test
 
 ```powershell
