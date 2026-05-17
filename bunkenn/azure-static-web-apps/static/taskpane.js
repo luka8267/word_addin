@@ -1274,9 +1274,13 @@
     });
 
     await saveAndSyncDocumentState(documentState);
+    const contextCount = (documentState.citations || []).filter(function (citation) {
+      return !!citation.contextText;
+    }).length;
     return {
       orderedPaperIds: numbering.orderedPaperIds,
       bibliography,
+      contextCount,
     };
   }
 
@@ -1621,10 +1625,14 @@
     documentCitationsMessage.textContent = "この文書の引用を更新しています...";
     try {
       const documentState = await loadDocumentState();
+      documentState.citations = await collectCitationContextTexts(documentState.citations || []);
+      const contextCount = (documentState.citations || []).filter(function (citation) {
+        return !!citation.contextText;
+      }).length;
       await saveAndSyncDocumentState(documentState);
       await loadDocumentCitationSummary(documentState);
       await checkDocumentCitationSync(documentState);
-      setStatus("この文書の引用一覧を更新しました。");
+      setStatus(`この文書の引用一覧を更新しました。引用文同期: ${contextCount}/${(documentState.citations || []).length}件`);
     } catch (error) {
       const message = error && error.message ? error.message : "この文書の引用一覧の更新に失敗しました。";
       documentCitationsMessage.textContent = message;
@@ -1689,9 +1697,9 @@
     setStatus("参考文献を更新しています。");
     try {
       const documentState = await loadDocumentState();
-      await updateBibliographyFromState(documentState);
+      const result = await updateBibliographyFromState(documentState);
       await loadDocumentCitationSummary(documentState);
-      setStatus("参考文献を更新しました。");
+      setStatus(`参考文献を更新しました。引用文同期: ${result.contextCount}/${(documentState.citations || []).length}件`);
     } catch (error) {
       setStatus(error && error.message ? error.message : "参考文献の更新に失敗しました。");
     } finally {
