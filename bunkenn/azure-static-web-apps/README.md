@@ -81,6 +81,15 @@ python bunkenn\generate_manifest.py --local
 Use `bunkenn\manifest.local.xml` for the normal add-in and
 `bunkenn\manifest.local.minimal.xml` for the first diagnostic check.
 
+To prepare a Windows shared-folder catalog copy:
+
+```powershell
+.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer
+```
+
+Run this from the repository root. To also create the SMB share, rerun from an
+Administrator PowerShell with `-CreateShare`.
+
 ## Design notes
 
 - Keep the add-in UI and API under the same Azure Static Web Apps origin.

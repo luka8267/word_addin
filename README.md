@@ -83,6 +83,26 @@ manifest after the local Functions host and SWA emulator are running. If Word
 does not refresh after replacing the manifest, close Word and clear the Office
 add-in cache before trying again.
 
+To prepare a Windows shared-folder catalog copy:
+
+```powershell
+.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer
+```
+
+This generates the local manifest and copies it to
+`%USERPROFILE%\Documents\bunken-word-addin-catalog\manifest.xml`. Windows Word
+loads test add-ins from a trusted shared-folder catalog, so either share that
+folder manually or run PowerShell as Administrator with `-CreateShare`:
+
+```powershell
+.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -CreateShare
+```
+
+Then add the network share, for example `\\localhost\bunken-word-addin-catalog`,
+under Word's trusted add-in catalogs, restart Word, and open the add-in from
+`Insert > My Add-ins > Shared Folder`.
+Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](https://learn.microsoft.com/en-us/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins).
+
 With Node.js 24, `swa start ./static --api-location ./api` can fail because the
 CLI rejects the Functions Core Tools/Node version combination. Use the
 `--api-devserver-url` flow above unless you switch to a Functions-supported
