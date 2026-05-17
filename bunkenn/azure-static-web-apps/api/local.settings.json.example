@@ -1,0 +1,10 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "SUPABASE_URL": "https://udhgdndfcmdgpnxpksvo.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "paste-your-anon-or-publishable-key-here",
+    "BUNKEN_ENABLE_DEBUG_ENDPOINTS": "true"
+  }
+}

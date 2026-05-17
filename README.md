@@ -1,5 +1,27 @@
 # word_addin
 
+## Local Supabase API setup
+
+Copy the example settings file and paste the same anon/publishable key used by
+the Streamlit app:
+
+```powershell
+Copy-Item `
+  bunkenn\azure-static-web-apps\api\local.settings.json.example `
+  bunkenn\azure-static-web-apps\api\local.settings.json
+```
+
+Do not put a service-role key in `local.settings.json` unless you are doing a
+server-only maintenance task. The add-in's normal login/search/sync flow should
+use `SUPABASE_PUBLISHABLE_KEY`.
+
+To run Azure Functions locally, install Azure Functions Core Tools, then run:
+
+```powershell
+cd bunkenn\azure-static-web-apps\api
+func start
+```
+
 ## Test
 
 ```powershell
