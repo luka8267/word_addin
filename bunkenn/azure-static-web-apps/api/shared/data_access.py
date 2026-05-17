@@ -482,7 +482,10 @@ def list_document_citations(context: dict[str, str], word_document_id: str) -> d
     citation_rows = request_supabase(
         "/rest/v1/document_citations",
         query_params={
-            "select": "id,citation_key,word_control_id,citation_items,rendered_text,sort_order,updated_at",
+            "select": (
+                "id,citation_key,word_control_id,citation_items,rendered_text,"
+                "context_text,sort_order,updated_at"
+            ),
             "document_id": f"eq.{document['id']}",
             "order": "sort_order.asc,created_at.asc",
         },
@@ -517,6 +520,7 @@ def list_document_citations(context: dict[str, str], word_document_id: str) -> d
                 "citationId": row.get("citation_key") or "",
                 "controlId": row.get("word_control_id") or "",
                 "renderedText": row.get("rendered_text") or "",
+                "contextText": row.get("context_text") or "",
                 "sortOrder": row.get("sort_order") or 0,
                 "updatedAt": row.get("updated_at") or "",
                 "items": items,
@@ -595,6 +599,7 @@ def sync_document_citations(context: dict[str, str], payload: dict) -> dict:
                 "word_control_id": str(citation.get("controlId") or ""),
                 "citation_items": items,
                 "rendered_text": str(citation.get("renderedText") or ""),
+                "context_text": str(citation.get("contextText") or "")[:2000],
                 "sort_order": int(citation.get("sortOrder") or index + 1),
                 "updated_at": now,
             }

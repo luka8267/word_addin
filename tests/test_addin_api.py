@@ -128,6 +128,7 @@ class AddinDataAccessTests(unittest.TestCase):
                     "citationId": "cit-1",
                     "controlId": "42",
                     "renderedText": "[1]",
+                    "contextText": "この論文では重要な知見が示されている[1]。",
                     "sortOrder": 1,
                     "items": [
                         {
@@ -160,6 +161,10 @@ class AddinDataAccessTests(unittest.TestCase):
         self.assertEqual(
             citation_post["json_body"][0]["citation_items"],
             [{"paperId": "paper-1", "locator": "p. 10", "referenceNumber": 1}],
+        )
+        self.assertEqual(
+            citation_post["json_body"][0]["context_text"],
+            "この論文では重要な知見が示されている[1]。",
         )
 
 

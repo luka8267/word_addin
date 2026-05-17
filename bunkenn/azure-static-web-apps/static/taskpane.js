@@ -488,6 +488,13 @@
       head.appendChild(reference);
       item.appendChild(head);
 
+      if (citation.contextText) {
+        const contextLine = document.createElement("span");
+        contextLine.className = "citation-paper";
+        contextLine.textContent = citation.contextText;
+        item.appendChild(contextLine);
+      }
+
       (citation.items || []).forEach(function (citationItem) {
         const paper = citationItem.paper || {};
         const paperLine = document.createElement("span");
@@ -913,6 +920,7 @@
       style: normalizeStyleName(citation.style),
       locator: citation.locator || undefined,
       renderedText: citation.renderedText || "",
+      contextText: citation.contextText || "",
       referenceNumber: citation.referenceNumber || null,
       referenceNumbers: Array.isArray(citation.referenceNumbers) ? citation.referenceNumbers : [],
     };
@@ -973,6 +981,50 @@
       byControlId.set(String(citation.controlId), citation);
     }
     return byControlId;
+  }
+
+  function normalizeCitationContextText(text, renderedText) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+    if (!normalized || normalized === String(renderedText || "").trim()) {
+      return "";
+    }
+    return normalized.slice(0, 2000);
+  }
+
+  async function collectCitationContextTexts(citations) {
+    const contextByControlId = new Map();
+    await Word.run(async function (context) {
+      const controls = context.document.contentControls;
+      context.load(controls, "items/id,items/tag");
+      await context.sync();
+
+      const paragraphRefs = [];
+      controls.items.forEach(function (control) {
+        if (control.tag !== CITATION_TAG) {
+          return;
+        }
+        const paragraph = control.getRange().paragraphs.getFirstOrNullObject();
+        context.load(paragraph, "text");
+        paragraphRefs.push({
+          controlId: String(control.id),
+          paragraph,
+        });
+      });
+      await context.sync();
+
+      paragraphRefs.forEach(function (entry) {
+        if (!entry.paragraph.isNullObject) {
+          contextByControlId.set(entry.controlId, entry.paragraph.text || "");
+        }
+      });
+    });
+
+    return (citations || []).map(function (citation) {
+      const paragraphText = contextByControlId.get(String(citation.controlId)) || "";
+      return Object.assign({}, citation, {
+        contextText: normalizeCitationContextText(paragraphText, citation.renderedText),
+      });
+    });
   }
 
   function numberBibliographyEntries(entries) {
@@ -1118,6 +1170,7 @@
     });
 
     documentState.citations = nextCitations;
+    documentState.citations = await collectCitationContextTexts(documentState.citations);
     documentState.documentTitle = getCurrentDocumentTitle();
     documentState.style = activeStyle;
     return {
@@ -1211,6 +1264,7 @@
           citationId: citation.citationId,
           controlId: String(citation.controlId || ""),
           renderedText: citation.renderedText || "",
+          contextText: citation.contextText || "",
           sortOrder: citationIndex + 1,
           items: (citation.paperIds || []).map(function (paperId, itemIndex) {
             return {
