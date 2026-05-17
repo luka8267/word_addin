@@ -268,7 +268,8 @@
       const nodes = button.querySelectorAll("strong, span");
       nodes[0].textContent = paper.title;
       nodes[1].textContent = paper.authors;
-      nodes[2].textContent = `${paper.journal} ${paper.year ? `(${paper.year})` : ""}`;
+      const doiPart = paper.doi ? ` DOI: ${paper.doi}` : "";
+      nodes[2].textContent = `${paper.journal} ${paper.year ? `(${paper.year})` : ""}${doiPart}`;
       button.addEventListener("click", function () {
         state.selectedPaper = paper;
         selectionMessage.textContent = `選択中: ${paper.title}`;
@@ -1128,10 +1129,10 @@
       await context.sync();
 
       const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
-      const range = bodyEnd.insertHtml(`<br />${htmlContent}`, Word.InsertLocation.after);
-      const control = range.insertContentControl();
+      const control = bodyEnd.insertContentControl();
       control.tag = BIBLIOGRAPHY_TAG;
       control.title = "bunken bibliography";
+      control.insertHtml(htmlContent, Word.InsertLocation.replace);
       context.load(control, "id");
 
       await context.sync();
