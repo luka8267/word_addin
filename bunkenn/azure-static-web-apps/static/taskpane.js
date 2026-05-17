@@ -646,7 +646,7 @@
         delete citation.locator;
       }
     });
-    setStatus("引用のlocatorを保存しました。");
+    setStatus("引用のlocatorを保存し、参考文献を更新しました。");
   }
 
   async function addSelectedPaperToEditingCitation() {
@@ -672,7 +672,7 @@
       setStatus("この文献はすでに選択中の引用に含まれています。");
       return;
     }
-    setStatus(`選択中の引用に文献を追加しました: ${state.selectedPaper.title}`);
+    setStatus(`選択中の引用に文献を追加し、参考文献を更新しました: ${state.selectedPaper.title}`);
   }
 
   async function removeEditingCitationPaper(index) {
@@ -689,7 +689,7 @@
       citation.paperIds = paperIds;
       return true;
     });
-    setStatus(result.changed ? "引用から文献を外しました。" : "最後の文献は外せません。引用全体を削除してください。");
+    setStatus(result.changed ? "引用から文献を外し、参考文献を更新しました。" : "最後の文献は外せません。引用全体を削除してください。");
   }
 
   async function moveEditingCitationPaper(index, direction) {
@@ -708,7 +708,7 @@
       citation.paperIds = paperIds;
       return true;
     });
-    setStatus(result.changed ? "引用内の文献順序を変更しました。" : "文献順序は変更されませんでした。");
+    setStatus(result.changed ? "引用内の文献順序を変更し、参考文献を更新しました。" : "文献順序は変更されませんでした。");
   }
 
   async function deleteEditingCitation() {
@@ -741,7 +741,7 @@
     await checkDocumentCitationSync(documentState);
     clearEditingCitation();
     selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
-    setStatus("引用を削除しました。");
+    setStatus("引用を削除し、参考文献を更新しました。");
   }
 
   async function checkDocumentCitationSync(documentState) {
