@@ -113,6 +113,15 @@ To troubleshoot the add-in catalog itself, prepare the minimal manifest instead:
 .\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant minimal
 ```
 
+If Word keeps showing an old taskpane or 404 after the manifest changes, close
+Word and clear the local add-in cache:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Clear-WordAddinCache.ps1
+```
+
+If Word or WebView processes are stuck, rerun with `-CloseWord`.
+
 Then add the network share, for example `\\localhost\bunken-word-addin-catalog`,
 under Word's trusted add-in catalogs, restart Word, and open the add-in from
 `Insert > My Add-ins > Shared Folder`.
