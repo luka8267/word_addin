@@ -17,15 +17,16 @@ def build_bibliography_entry(paper: PaperSummary, style: str) -> str:
     authors = bibliography_authors(paper.authors, normalized_style)
     year = year_label(paper.year)
     doi = doi_suffix(paper.doi, normalized_style)
+    publication = publication_label(paper, normalized_style)
     if normalized_style == "ieee":
-        return f'{authors}, "{paper.title}," {paper.journal}, {year}.{doi}'
+        return f'{authors}, "{paper.title}," {publication}, {year}.{doi}'
     if normalized_style == "acs":
-        return f"{authors}. {paper.title}. {paper.journal} {year}.{doi}"
+        return f"{authors}. {paper.title}. {publication} {year}.{doi}"
     if normalized_style == "vancouver":
-        return f"{authors}. {paper.title}. {paper.journal}. {year}.{doi}"
+        return f"{authors}. {paper.title}. {publication}. {year}.{doi}"
     if normalized_style == "nature":
-        return f"{authors} {paper.title}. {paper.journal} ({year}).{doi}"
-    return f"{authors} ({year}). {paper.title}. {paper.journal}.{doi}"
+        return f"{authors} {paper.title}. {publication} ({year}).{doi}"
+    return f"{authors} ({year}). {paper.title}. {publication}.{doi}"
 
 
 def normalize_style(style: str) -> str:
@@ -71,6 +72,23 @@ def parse_authors(authors: str) -> list[str]:
 
 def year_label(year: int | str | None) -> str:
     return str(year) if year else "n.d."
+
+
+def publication_label(paper: PaperSummary, style: str) -> str:
+    label = paper.journal or paper.publisher or ""
+    volume = (paper.volume or "").strip()
+    issue = (paper.issue or "").strip()
+    pages = (paper.pages or "").strip()
+    if volume:
+        volume_part = volume
+        if issue:
+            volume_part += f"({issue})"
+        separator = " " if style in {"apa", "acs"} else ", "
+        label = f"{label}{separator}{volume_part}" if label else volume_part
+    if pages:
+        page_separator = ", " if label else ""
+        label = f"{label}{page_separator}{pages}"
+    return label or "Unknown"
 
 
 def doi_suffix(doi: str | None, style: str) -> str:

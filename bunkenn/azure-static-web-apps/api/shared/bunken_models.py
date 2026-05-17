@@ -9,6 +9,11 @@ class PaperSummary:
     journal: str
     year: int
     doi: str | None = None
+    volume: str = ""
+    issue: str = ""
+    pages: str = ""
+    publisher: str = ""
+    item_type: str = "journalArticle"
 
     def to_dict(self) -> dict:
         return asdict(self)

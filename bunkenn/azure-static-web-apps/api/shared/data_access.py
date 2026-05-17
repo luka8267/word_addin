@@ -30,6 +30,8 @@ DEBUG_ENDPOINTS_ENABLED = os.getenv("BUNKEN_ENABLE_DEBUG_ENDPOINTS", "").lower()
     "yes",
 }
 SAMPLE_DATA_PATH = Path(__file__).resolve().with_name("sample_papers.json")
+PAPER_SELECT_COLUMNS = "id,title,authors,journal,year,doi,user_id,volume,issue,pages,publisher,item_type"
+LEGACY_PAPER_SELECT_COLUMNS = "id,title,authors,journal,year,doi,user_id"
 
 
 def decode_jwt_payload_unverified(token: str) -> dict:
@@ -135,6 +137,11 @@ def paper_from_mapping(item: dict) -> PaperSummary:
         journal=item.get("journal", "") or "",
         year=int(item.get("year", 0) or 0),
         doi=item.get("doi"),
+        volume=item.get("volume", "") or "",
+        issue=item.get("issue", "") or "",
+        pages=item.get("pages", "") or "",
+        publisher=item.get("publisher", "") or "",
+        item_type=item.get("item_type", "") or "journalArticle",
     )
 
 
@@ -200,6 +207,16 @@ def request_supabase(
     except HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"Supabase request failed: {error.code} {error_body}") from error
+
+
+def is_missing_metadata_column_error(error: Exception) -> bool:
+    error_text = str(error).lower()
+    if "could not find" not in error_text and "column" not in error_text:
+        return False
+    return any(
+        column in error_text
+        for column in ("volume", "issue", "pages", "publisher", "item_type")
+    )
 
 
 def login_with_password(email: str, password: str) -> dict:
@@ -279,7 +296,7 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
             raise PermissionError("Authentication required")
         normalized_query = (query or "").strip()
         params = {
-            "select": "id,title,authors,journal,year,doi,user_id",
+            "select": PAPER_SELECT_COLUMNS,
             "user_id": f"eq.{user_id}",
             "order": "display_order.asc.nullslast,id.asc",
         }
@@ -291,12 +308,23 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
                 f"journal.ilike.*{escaped_query}*)"
             )
         auth = supabase_request_auth(context)
-        rows = request_supabase(
-            "/rest/v1/paper_items_view",
-            query_params=params,
-            bearer_token=auth["bearer_token"],
-            api_key=auth["api_key"],
-        )
+        try:
+            rows = request_supabase(
+                "/rest/v1/paper_items_view",
+                query_params=params,
+                bearer_token=auth["bearer_token"],
+                api_key=auth["api_key"],
+            )
+        except RuntimeError as error:
+            if not is_missing_metadata_column_error(error):
+                raise
+            params["select"] = LEGACY_PAPER_SELECT_COLUMNS
+            rows = request_supabase(
+                "/rest/v1/paper_items_view",
+                query_params=params,
+                bearer_token=auth["bearer_token"],
+                api_key=auth["api_key"],
+            )
         return [paper_from_mapping(row) for row in rows]
 
     if use_sqlite():
@@ -353,16 +381,28 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
         if not user_id or not context.get("access_token"):
             raise PermissionError("Authentication required")
         auth = supabase_request_auth(context)
-        rows = request_supabase(
-            "/rest/v1/paper_items_view",
-            query_params={
-                "select": "id,title,authors,journal,year,doi,user_id",
-                "user_id": f"eq.{user_id}",
-                "id": f"in.({csv_ids})",
-            },
-            bearer_token=auth["bearer_token"],
-            api_key=auth["api_key"],
-        )
+        params = {
+            "select": PAPER_SELECT_COLUMNS,
+            "user_id": f"eq.{user_id}",
+            "id": f"in.({csv_ids})",
+        }
+        try:
+            rows = request_supabase(
+                "/rest/v1/paper_items_view",
+                query_params=params,
+                bearer_token=auth["bearer_token"],
+                api_key=auth["api_key"],
+            )
+        except RuntimeError as error:
+            if not is_missing_metadata_column_error(error):
+                raise
+            params["select"] = LEGACY_PAPER_SELECT_COLUMNS
+            rows = request_supabase(
+                "/rest/v1/paper_items_view",
+                query_params=params,
+                bearer_token=auth["bearer_token"],
+                api_key=auth["api_key"],
+            )
         by_id = {str(row["id"]): paper_from_mapping(row) for row in rows}
         return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
 

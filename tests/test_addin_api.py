@@ -40,6 +40,11 @@ class SupabaseStub:
                     "journal": "Journal B",
                     "year": 2025,
                     "doi": None,
+                    "volume": "12",
+                    "issue": "2",
+                    "pages": "10-20",
+                    "publisher": "Publisher B",
+                    "item_type": "journalArticle",
                     "user_id": "user-1",
                 },
                 {
@@ -49,6 +54,11 @@ class SupabaseStub:
                     "journal": "Journal A",
                     "year": 2024,
                     "doi": "10.1000/example",
+                    "volume": "42",
+                    "issue": "1",
+                    "pages": "100-110",
+                    "publisher": "Publisher A",
+                    "item_type": "journalArticle",
                     "user_id": "user-1",
                 },
             ]
@@ -84,6 +94,7 @@ class AddinDataAccessTests(unittest.TestCase):
 
         self.assertEqual([paper.id for paper in papers], ["paper-1", "paper-2"])
         self.assertEqual(papers[0].doi, "10.1000/example")
+        self.assertEqual(papers[0].volume, "42")
 
     def test_search_user_papers_requires_supabase_auth(self):
         with patch.object(data_access, "use_supabase", return_value=True):
@@ -200,6 +211,21 @@ class AddinCitationFormatTests(unittest.TestCase):
 
         self.assertIn("https://doi.org/10.1000/example", build_bibliography_entry(paper, "apa"))
         self.assertIn("doi: 10.1000/example", build_bibliography_entry(paper, "vancouver"))
+
+    def test_bibliography_entries_include_publication_metadata(self):
+        paper = PaperSummary(
+            id="paper-1",
+            title="Title",
+            authors="Alpha",
+            journal="Journal",
+            year=2024,
+            volume="12",
+            issue="3",
+            pages="45-67",
+        )
+
+        self.assertIn("Journal 12(3), 45-67", build_bibliography_entry(paper, "apa"))
+        self.assertIn("Journal, 12(3), 45-67", build_bibliography_entry(paper, "vancouver"))
 
 
 if __name__ == "__main__":
