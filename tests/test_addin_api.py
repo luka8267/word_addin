@@ -174,8 +174,32 @@ class AddinCitationFormatTests(unittest.TestCase):
             year=2024,
         )
 
-        self.assertEqual(build_in_text_citation(paper, "apa"), "(Alpha, 2024)")
+        self.assertEqual(build_in_text_citation(paper, "apa"), "(Alpha & Beta, 2024)")
         self.assertIn("Title", build_bibliography_entry(paper, "apa"))
+
+    def test_author_year_uses_et_al_for_three_or_more_authors(self):
+        paper = PaperSummary(
+            id="paper-1",
+            title="Title",
+            authors="Alpha, Beta, Gamma",
+            journal="Journal",
+            year=2024,
+        )
+
+        self.assertEqual(build_in_text_citation(paper, "apa"), "(Alpha et al., 2024)")
+
+    def test_bibliography_entries_include_doi(self):
+        paper = PaperSummary(
+            id="paper-1",
+            title="Title",
+            authors="Alpha, Beta",
+            journal="Journal",
+            year=2024,
+            doi="10.1000/example",
+        )
+
+        self.assertIn("https://doi.org/10.1000/example", build_bibliography_entry(paper, "apa"))
+        self.assertIn("doi: 10.1000/example", build_bibliography_entry(paper, "vancouver"))
 
 
 if __name__ == "__main__":
