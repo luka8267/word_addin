@@ -1115,29 +1115,29 @@
     const numberedEntries = isNumericStyle(documentState.style)
       ? numberBibliographyEntries(bibliography.entries)
       : (bibliography.entries || []);
+    const htmlContent = buildBibliographyHtml(bibliography.title, numberedEntries);
 
     await Word.run(async function (context) {
       const controls = context.document.contentControls;
-      context.load(controls, "items/id,items/tag");
+      context.load(controls, "items/id,items/tag,items/title");
       await context.sync();
 
-      const existing = controls.items.find(function (item) { return item.tag === BIBLIOGRAPHY_TAG; });
-      const htmlContent = buildBibliographyHtml(bibliography.title, numberedEntries);
-      if (existing) {
-        existing.insertHtml(htmlContent, Word.InsertLocation.replace);
-        documentState.bibliographyControlId = existing.id;
-      } else {
-        const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
-        const range = bodyEnd.insertHtml(`<br />${htmlContent}`, Word.InsertLocation.after);
-        const control = range.insertContentControl();
-        control.tag = BIBLIOGRAPHY_TAG;
-        control.title = "bunken bibliography";
-        context.load(control, "id");
-        await context.sync();
-        documentState.bibliographyControlId = control.id;
-      }
+      controls.items.forEach(function (item) {
+        if (item.tag === BIBLIOGRAPHY_TAG || item.title === "bunken bibliography") {
+          item.delete(false);
+        }
+      });
+      await context.sync();
+
+      const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
+      const range = bodyEnd.insertHtml(`<br />${htmlContent}`, Word.InsertLocation.after);
+      const control = range.insertContentControl();
+      control.tag = BIBLIOGRAPHY_TAG;
+      control.title = "bunken bibliography";
+      context.load(control, "id");
 
       await context.sync();
+      documentState.bibliographyControlId = control.id;
     });
 
     await saveAndSyncDocumentState(documentState);
