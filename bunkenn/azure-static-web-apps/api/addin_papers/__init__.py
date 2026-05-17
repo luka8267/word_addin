@@ -11,7 +11,7 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
             if not debug_endpoints_enabled():
                 return func.HttpResponse("Not found", status_code=404)
             return func.HttpResponse(
-                json.dumps({"version": "require-auth-for-supabase-papers-v2"}),
+                json.dumps({"version": "citation-context-sync-v1"}),
                 mimetype="application/json",
                 status_code=200,
             )
