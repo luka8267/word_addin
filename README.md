@@ -56,11 +56,20 @@ In a second terminal:
 cd bunkenn\azure-static-web-apps
 npx -y @azure/static-web-apps-cli start ./static `
   --api-devserver-url http://localhost:7071 `
-  --port 4280
+  --port 4280 `
+  --ssl `
+  --ssl-cert "$env:USERPROFILE\.office-addin-dev-certs\localhost.crt" `
+  --ssl-key "$env:USERPROFILE\.office-addin-dev-certs\localhost.key"
 ```
 
-Open `http://localhost:4280/taskpane.html`. The taskpane will call
-`http://localhost:4280/api/...`, and SWA CLI proxies those requests to the
+Install the localhost certificate first if needed:
+
+```powershell
+npx -y office-addin-dev-certs install
+```
+
+Open `https://localhost:4280/taskpane.html`. The taskpane will call
+`https://localhost:4280/api/...`, and SWA CLI proxies those requests to the
 local Functions host.
 
 Generate local sideload manifests:
@@ -74,7 +83,7 @@ This writes `bunkenn\manifest.local.xml` plus diagnostic variants such as
 are ignored by Git. Override the URL only when needed:
 
 ```powershell
-$env:BUNKEN_LOCAL_BASE_URL="http://localhost:4280"
+$env:BUNKEN_LOCAL_BASE_URL="https://localhost:4280"
 python bunkenn\generate_manifest.py --local
 ```
 
@@ -96,6 +105,12 @@ folder manually or run PowerShell as Administrator with `-CreateShare`:
 
 ```powershell
 .\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -CreateShare
+```
+
+To troubleshoot the add-in catalog itself, prepare the minimal manifest instead:
+
+```powershell
+.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant minimal
 ```
 
 Then add the network share, for example `\\localhost\bunken-word-addin-catalog`,

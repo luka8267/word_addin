@@ -71,7 +71,7 @@ FULL_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </bt:Sets>
     </Requirements>
     <Hosts>
-      <Host xsi:type="WordHost">
+      <Host xsi:type="Document">
         <DesktopFormFactor>
           <GetStarted>
             <Title resid="GetStarted.Title"/>
@@ -168,7 +168,7 @@ COMMANDS_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </bt:Sets>
     </Requirements>
     <Hosts>
-      <Host xsi:type="WordHost">
+      <Host xsi:type="Document">
         <DesktopFormFactor>
           <GetStarted>
             <Title resid="GetStarted.Title"/>
@@ -180,12 +180,22 @@ COMMANDS_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
             <OfficeTab id="TabHome">
               <Group id="Bunken.Group">
                 <Label resid="Bunken.GroupLabel"/>
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16"/>
+                  <bt:Image size="32" resid="Icon.32"/>
+                  <bt:Image size="80" resid="Icon.80"/>
+                </Icon>
                 <Control xsi:type="Button" id="Bunken.OpenTaskpane">
                   <Label resid="Bunken.OpenTaskpane.Label"/>
                   <Supertip>
                     <Title resid="Bunken.OpenTaskpane.Label"/>
                     <Description resid="Bunken.OpenTaskpane.Description"/>
                   </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16"/>
+                    <bt:Image size="32" resid="Icon.32"/>
+                    <bt:Image size="80" resid="Icon.80"/>
+                  </Icon>
                   <Action xsi:type="ShowTaskpane">
                     <TaskpaneId>ButtonId1</TaskpaneId>
                     <SourceLocation resid="Taskpane.Url"/>
@@ -198,6 +208,11 @@ COMMANDS_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </Host>
     </Hosts>
     <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16" DefaultValue="__BASE_URL__/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="__BASE_URL__/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="__BASE_URL__/assets/icon-80.png"/>
+      </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="__BASE_URL__/taskpane.minimal.html"/>
         <bt:Url id="Commands.Url" DefaultValue="__BASE_URL__/commands.html"/>
@@ -250,7 +265,7 @@ ICONS_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </bt:Sets>
     </Requirements>
     <Hosts>
-      <Host xsi:type="WordHost">
+      <Host xsi:type="Document">
         <DesktopFormFactor>
           <GetStarted>
             <Title resid="GetStarted.Title"/>
@@ -381,7 +396,7 @@ def generate_production_manifests() -> None:
 
 
 def generate_local_manifests() -> None:
-    base_url = os.getenv("BUNKEN_LOCAL_BASE_URL", "http://localhost:4280").strip().rstrip("/")
+    base_url = os.getenv("BUNKEN_LOCAL_BASE_URL", "https://localhost:4280").strip().rstrip("/")
     require_local_base_url(base_url)
 
     minimal_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_MINIMAL_ID", "7D30D056-54CF-4D7A-A8D3-5002E1C034B1").strip()

@@ -1,7 +1,9 @@
 param(
     [string] $CatalogPath = "$env:USERPROFILE\Documents\bunken-word-addin-catalog",
-    [string] $BaseUrl = "http://localhost:4280",
+    [string] $BaseUrl = "https://localhost:4280",
     [string] $ShareName = "bunken-word-addin-catalog",
+    [ValidateSet("full", "minimal", "commands", "icons")]
+    [string] $ManifestVariant = "full",
     [switch] $CreateShare,
     [switch] $CheckLocalServer
 )
@@ -10,7 +12,12 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $manifestGenerator = Join-Path $repoRoot "bunkenn\generate_manifest.py"
-$manifestSource = Join-Path $repoRoot "bunkenn\manifest.local.xml"
+$manifestFileName = if ($ManifestVariant -eq "full") {
+    "manifest.local.xml"
+} else {
+    "manifest.local.$ManifestVariant.xml"
+}
+$manifestSource = Join-Path $repoRoot "bunkenn\$manifestFileName"
 $catalogDir = New-Item -ItemType Directory -Force -Path $CatalogPath
 $catalogManifest = Join-Path $catalogDir.FullName "manifest.xml"
 
@@ -21,6 +28,8 @@ Copy-Item -LiteralPath $manifestSource -Destination $catalogManifest -Force
 Write-Host ""
 Write-Host "Local Word manifest prepared:"
 Write-Host "  $catalogManifest"
+Write-Host "Variant:"
+Write-Host "  $ManifestVariant"
 Write-Host ""
 
 if ($CheckLocalServer) {

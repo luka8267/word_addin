@@ -64,12 +64,21 @@ func start --port 7071 --cors *
 cd ..
 npx -y @azure/static-web-apps-cli start ./static `
   --api-devserver-url http://localhost:7071 `
-  --port 4280
+  --port 4280 `
+  --ssl `
+  --ssl-cert "$env:USERPROFILE\.office-addin-dev-certs\localhost.crt" `
+  --ssl-key "$env:USERPROFILE\.office-addin-dev-certs\localhost.key"
 ```
 
-5. Open `http://localhost:4280/taskpane.html`.
+Install the localhost certificate first if needed:
 
-The taskpane and API are same-origin at `localhost:4280`; API requests are
+```powershell
+npx -y office-addin-dev-certs install
+```
+
+5. Open `https://localhost:4280/taskpane.html`.
+
+The taskpane and API are same-origin at `https://localhost:4280`; API requests are
 proxied to the Functions host on `localhost:7071`.
 
 Generate a local Word sideload manifest from the repository root:
