@@ -991,12 +991,57 @@
     return normalized.slice(0, 2000);
   }
 
+  function citationTextCandidates(citation) {
+    const values = [];
+    const renderedText = String(citation && citation.renderedText ? citation.renderedText : "").trim();
+    if (renderedText) {
+      values.push(renderedText);
+      if (/^\d+(?:-\d+)?$/.test(renderedText)) {
+        values.push(`${renderedText})`);
+        values.push(`[${renderedText}]`);
+      }
+    }
+    (citation && citation.referenceNumbers || []).forEach(function (number) {
+      const value = String(number || "").trim();
+      if (value) {
+        values.push(value);
+        values.push(`${value})`);
+        values.push(`[${value}]`);
+      }
+    });
+    return Array.from(new Set(values.filter(Boolean))).sort(function (left, right) {
+      return right.length - left.length;
+    });
+  }
+
+  function findParagraphContextForCitation(citation, paragraphTexts, startIndex) {
+    const candidates = citationTextCandidates(citation);
+    if (candidates.length === 0) {
+      return { index: startIndex, text: "" };
+    }
+
+    for (const passStart of [startIndex, 0]) {
+      for (let index = passStart; index < paragraphTexts.length; index += 1) {
+        const text = paragraphTexts[index] || "";
+        if (candidates.some(function (candidate) { return text.includes(candidate); })) {
+          return { index, text };
+        }
+      }
+    }
+    return { index: startIndex, text: "" };
+  }
+
   async function collectCitationContextTexts(citations) {
     const contextByControlId = new Map();
+    let paragraphTexts = [];
     await Word.run(async function (context) {
       const paragraphs = context.document.body.paragraphs;
       context.load(paragraphs, "items/text");
       await context.sync();
+
+      paragraphTexts = paragraphs.items.map(function (paragraph) {
+        return paragraph.text || "";
+      });
 
       const paragraphControlRefs = [];
       paragraphs.items.forEach(function (paragraph) {
@@ -1018,10 +1063,18 @@
       });
     });
 
+    let paragraphIndex = 0;
     return (citations || []).map(function (citation) {
       const paragraphText = contextByControlId.get(String(citation.controlId)) || "";
+      const fallback = paragraphText
+        ? { index: paragraphIndex, text: "" }
+        : findParagraphContextForCitation(citation, paragraphTexts, paragraphIndex);
+      paragraphIndex = fallback.index;
       return Object.assign({}, citation, {
-        contextText: normalizeCitationContextText(paragraphText, citation.renderedText),
+        contextText: normalizeCitationContextText(
+          paragraphText || fallback.text,
+          citation.renderedText
+        ),
       });
     });
   }
