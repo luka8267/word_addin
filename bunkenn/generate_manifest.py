@@ -10,6 +10,7 @@ MINIMAL_ADDIN_ID = "__MINIMAL_ADDIN_ID__"
 COMMANDS_ADDIN_ID = "__COMMANDS_ADDIN_ID__"
 ICONS_ADDIN_ID = "__ICONS_ADDIN_ID__"
 FULL_ADDIN_ID = "__FULL_ADDIN_ID__"
+TASKPANE_ADDIN_ID = "__TASKPANE_ADDIN_ID__"
 
 MINIMAL_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <OfficeApp
@@ -132,6 +133,33 @@ FULL_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
+</OfficeApp>
+"""
+
+TASKPANE_MANIFEST = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:type="TaskPaneApp">
+  <Id>__TASKPANE_ADDIN_ID__</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>bunken</ProviderName>
+  <DefaultLocale>ja-JP</DefaultLocale>
+  <DisplayName DefaultValue="bunken Word"/>
+  <Description DefaultValue="Word citation and bibliography add-in for bunken"/>
+  <IconUrl DefaultValue="__BASE_URL__/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="__BASE_URL__/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="__BASE_URL__/taskpane.html"/>
+  <AppDomains>
+    <AppDomain>__BASE_URL__</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document"/>
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="__BASE_URL__/taskpane.html"/>
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
 </OfficeApp>
 """
 
@@ -337,6 +365,7 @@ def render_manifest(template: str, *, base_url: str, addin_id: str) -> str:
         .replace(COMMANDS_ADDIN_ID, addin_id)
         .replace(ICONS_ADDIN_ID, addin_id)
         .replace(FULL_ADDIN_ID, addin_id)
+        .replace(TASKPANE_ADDIN_ID, addin_id)
     )
 
 
@@ -403,6 +432,7 @@ def generate_local_manifests() -> None:
     commands_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_COMMANDS_ID", "68BB8312-86B9-430E-BC61-6B4DF8183703").strip()
     icons_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_ICONS_ID", "31539597-94E9-4509-BAC6-66987975D55D").strip()
     full_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_ID", "A8C349E2-742D-499D-A5CF-0CDDF6CE5CD1").strip()
+    taskpane_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_TASKPANE_ID", "E4FCB5D8-6D12-4B7C-A4E5-471628B020E6").strip()
 
     write_manifest(
         ROOT / "manifest.local.minimal.xml",
@@ -418,7 +448,11 @@ def generate_local_manifests() -> None:
     )
     full_manifest = render_manifest(FULL_MANIFEST, base_url=base_url, addin_id=full_id)
     write_manifest(ROOT / "manifest.local.full.xml", full_manifest)
-    write_manifest(ROOT / "manifest.local.xml", full_manifest)
+    write_manifest(
+        ROOT / "manifest.local.taskpane.xml",
+        render_manifest(TASKPANE_MANIFEST, base_url=base_url, addin_id=taskpane_id),
+    )
+    write_manifest(ROOT / "manifest.local.xml", render_manifest(TASKPANE_MANIFEST, base_url=base_url, addin_id=taskpane_id))
 
 
 def main() -> None:

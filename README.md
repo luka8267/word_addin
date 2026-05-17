@@ -88,9 +88,11 @@ python bunkenn\generate_manifest.py --local
 ```
 
 For Windows Word Desktop, use `bunkenn\manifest.local.xml` as the sideload
-manifest after the local Functions host and SWA emulator are running. If Word
-does not refresh after replacing the manifest, close Word and clear the Office
-add-in cache before trying again.
+manifest after the local Functions host and SWA emulator are running. The local
+default is a taskpane-only manifest because it is the most reliable desktop
+sideload path. Ribbon command manifests are still generated as diagnostic
+variants. If Word does not refresh after replacing the manifest, close Word and
+clear the Office add-in cache before trying again.
 
 To prepare a Windows shared-folder catalog copy:
 
@@ -111,6 +113,12 @@ To troubleshoot the add-in catalog itself, prepare the minimal manifest instead:
 
 ```powershell
 .\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant minimal
+```
+
+To test the ribbon command manifest, use:
+
+```powershell
+.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant full
 ```
 
 If Word keeps showing an old taskpane or 404 after the manifest changes, close

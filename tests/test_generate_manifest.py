@@ -25,6 +25,18 @@ class GenerateManifestTests(unittest.TestCase):
         self.assertIn("http://localhost:4280/taskpane.html", manifest)
         self.assertNotIn("jolly-smoke", manifest)
 
+    def test_local_taskpane_manifest_has_no_version_overrides(self):
+        manifest = generate_manifest.render_manifest(
+            generate_manifest.TASKPANE_MANIFEST,
+            base_url="https://localhost:4280",
+            addin_id="E4FCB5D8-6D12-4B7C-A4E5-471628B020E6",
+        )
+
+        ET.fromstring(manifest)
+
+        self.assertIn("https://localhost:4280/taskpane.html", manifest)
+        self.assertNotIn("VersionOverrides", manifest)
+
     def test_local_base_url_is_restricted_to_loopback(self):
         generate_manifest.require_local_base_url("http://localhost:4280")
         generate_manifest.require_local_base_url("https://127.0.0.1:4280")
