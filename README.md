@@ -63,6 +63,26 @@ Open `http://localhost:4280/taskpane.html`. The taskpane will call
 `http://localhost:4280/api/...`, and SWA CLI proxies those requests to the
 local Functions host.
 
+Generate local sideload manifests:
+
+```powershell
+python bunkenn\generate_manifest.py --local
+```
+
+This writes `bunkenn\manifest.local.xml` plus diagnostic variants such as
+`manifest.local.minimal.xml`. These files point to `http://localhost:4280` and
+are ignored by Git. Override the URL only when needed:
+
+```powershell
+$env:BUNKEN_LOCAL_BASE_URL="http://localhost:4280"
+python bunkenn\generate_manifest.py --local
+```
+
+For Windows Word Desktop, use `bunkenn\manifest.local.xml` as the sideload
+manifest after the local Functions host and SWA emulator are running. If Word
+does not refresh after replacing the manifest, close Word and clear the Office
+add-in cache before trying again.
+
 With Node.js 24, `swa start ./static --api-location ./api` can fail because the
 CLI rejects the Functions Core Tools/Node version combination. Use the
 `--api-devserver-url` flow above unless you switch to a Functions-supported

@@ -72,6 +72,15 @@ npx -y @azure/static-web-apps-cli start ./static `
 The taskpane and API are same-origin at `localhost:4280`; API requests are
 proxied to the Functions host on `localhost:7071`.
 
+Generate a local Word sideload manifest from the repository root:
+
+```powershell
+python bunkenn\generate_manifest.py --local
+```
+
+Use `bunkenn\manifest.local.xml` for the normal add-in and
+`bunkenn\manifest.local.minimal.xml` for the first diagnostic check.
+
 ## Design notes
 
 - Keep the add-in UI and API under the same Azure Static Web Apps origin.

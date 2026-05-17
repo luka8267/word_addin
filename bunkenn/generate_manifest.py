@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 
@@ -329,12 +330,30 @@ def write_manifest(path: Path, contents: str) -> None:
     print(f"generated: {path}")
 
 
-def main() -> None:
+def require_https_base_url(base_url: str) -> None:
+    if not base_url.startswith("https://"):
+        raise SystemExit("BUNKEN_PUBLIC_BASE_URL must start with https://")
+
+
+def require_local_base_url(base_url: str) -> None:
+    allowed_prefixes = (
+        "http://localhost:",
+        "https://localhost:",
+        "http://127.0.0.1:",
+        "https://127.0.0.1:",
+    )
+    if not base_url.startswith(allowed_prefixes):
+        raise SystemExit(
+            "BUNKEN_LOCAL_BASE_URL must use localhost or 127.0.0.1, "
+            "for example http://localhost:4280"
+        )
+
+
+def generate_production_manifests() -> None:
     base_url = os.getenv("BUNKEN_PUBLIC_BASE_URL", "").strip().rstrip("/")
     if not base_url:
         raise SystemExit("BUNKEN_PUBLIC_BASE_URL is required")
-    if not base_url.startswith("https://"):
-        raise SystemExit("BUNKEN_PUBLIC_BASE_URL must start with https://")
+    require_https_base_url(base_url)
 
     minimal_id = os.getenv("BUNKEN_WORD_ADDIN_MINIMAL_ID", "F97D2F69-8FED-4054-83DA-3AA92DBC2F40").strip()
     commands_id = os.getenv("BUNKEN_WORD_ADDIN_COMMANDS_ID", "8D0956B7-78B2-4AD8-9858-25E01E8D13D4").strip()
@@ -359,6 +378,44 @@ def main() -> None:
 
     if not (STATIC_ROOT / "taskpane.minimal.html").exists():
         print("warning: taskpane.minimal.html was not found under azure-static-web-apps/static")
+
+
+def generate_local_manifests() -> None:
+    base_url = os.getenv("BUNKEN_LOCAL_BASE_URL", "http://localhost:4280").strip().rstrip("/")
+    require_local_base_url(base_url)
+
+    minimal_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_MINIMAL_ID", "7D30D056-54CF-4D7A-A8D3-5002E1C034B1").strip()
+    commands_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_COMMANDS_ID", "68BB8312-86B9-430E-BC61-6B4DF8183703").strip()
+    icons_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_ICONS_ID", "31539597-94E9-4509-BAC6-66987975D55D").strip()
+    full_id = os.getenv("BUNKEN_WORD_ADDIN_LOCAL_ID", "A8C349E2-742D-499D-A5CF-0CDDF6CE5CD1").strip()
+
+    write_manifest(
+        ROOT / "manifest.local.minimal.xml",
+        render_manifest(MINIMAL_MANIFEST, base_url=base_url, addin_id=minimal_id),
+    )
+    write_manifest(
+        ROOT / "manifest.local.commands.xml",
+        render_manifest(COMMANDS_MANIFEST, base_url=base_url, addin_id=commands_id),
+    )
+    write_manifest(
+        ROOT / "manifest.local.icons.xml",
+        render_manifest(ICONS_MANIFEST, base_url=base_url, addin_id=icons_id),
+    )
+    full_manifest = render_manifest(FULL_MANIFEST, base_url=base_url, addin_id=full_id)
+    write_manifest(ROOT / "manifest.local.full.xml", full_manifest)
+    write_manifest(ROOT / "manifest.local.xml", full_manifest)
+
+
+def main() -> None:
+    if len(sys.argv) > 2:
+        raise SystemExit("usage: python generate_manifest.py [--local]")
+    if len(sys.argv) == 2:
+        if sys.argv[1] != "--local":
+            raise SystemExit("usage: python generate_manifest.py [--local]")
+        generate_local_manifests()
+        return
+
+    generate_production_manifests()
 
 
 if __name__ == "__main__":
