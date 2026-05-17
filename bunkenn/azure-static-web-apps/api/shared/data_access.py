@@ -574,4 +574,5 @@ def sync_document_citations(context: dict[str, str], payload: dict) -> dict:
         "synced": True,
         "documentId": document_id,
         "citationCount": len(citation_rows),
+        "syncedAt": now,
     }

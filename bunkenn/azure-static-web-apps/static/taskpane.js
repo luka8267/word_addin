@@ -18,6 +18,7 @@
     results: [],
     libraryResults: [],
     documentCitations: [],
+    documentInfo: null,
     documentSyncIssues: [],
     editingCitationControlId: "",
     editingCitation: null,
@@ -430,12 +431,14 @@
   function renderDocumentCitations() {
     documentCitationsList.innerHTML = "";
     const citations = state.documentCitations || [];
+    const updatedAt = formatDateTime(state.documentInfo && state.documentInfo.updatedAt);
+    const updatedText = updatedAt ? ` 最終同期: ${updatedAt}` : "";
     if (citations.length === 0) {
-      documentCitationsMessage.textContent = "この文書にはまだ同期済みの引用がありません。";
+      documentCitationsMessage.textContent = `この文書にはまだ同期済みの引用がありません。${updatedText}`;
       return;
     }
 
-    documentCitationsMessage.textContent = `${citations.length} 件の引用を表示しています。`;
+    documentCitationsMessage.textContent = `${citations.length} 件の引用を表示しています。${updatedText}`;
     citations.forEach(function (citation, index) {
       const item = document.createElement("button");
       item.type = "button";
@@ -844,6 +847,23 @@
     return normalized || "Word document";
   }
 
+  function formatDateTime(value) {
+    if (!value) {
+      return "";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+    return date.toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
   function createEmptyDocumentState() {
     return {
       version: 3,
@@ -1200,12 +1220,14 @@
   async function loadDocumentCitationSummary(documentState) {
     if (!(state.auth && state.auth.accessToken)) {
       state.documentCitations = [];
+      state.documentInfo = null;
       state.documentSyncIssues = [];
       renderDocumentCitations();
       renderDocumentSyncIssues();
       return;
     }
     const response = await fetchDocumentCitations(documentState.wordDocumentId);
+    state.documentInfo = response.document || null;
     state.documentCitations = response.citations || [];
     renderDocumentCitations();
   }
@@ -1324,6 +1346,7 @@
     saveAuthState(null);
     state.results = [];
     state.documentCitations = [];
+    state.documentInfo = null;
     state.documentSyncIssues = [];
     state.editingCitationControlId = "";
     state.editingCitation = null;

@@ -138,6 +138,7 @@ class AddinDataAccessTests(unittest.TestCase):
 
         self.assertEqual(result["documentId"], "doc-db-id")
         self.assertEqual(result["citationCount"], 1)
+        self.assertTrue(result["syncedAt"])
         citation_post = [
             kwargs
             for path, kwargs in stub.calls
