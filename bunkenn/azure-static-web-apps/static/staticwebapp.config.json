@@ -15,6 +15,17 @@
       "allowedRoles": ["anonymous"]
     }
   ],
+  "navigationFallback": {
+    "rewrite": "/taskpane.html",
+    "exclude": [
+      "/api/*",
+      "/assets/*",
+      "/*.js",
+      "/*.css",
+      "/*.png",
+      "/*.ico"
+    ]
+  },
   "responseOverrides": {
     "404": {
       "rewrite": "/404.html",

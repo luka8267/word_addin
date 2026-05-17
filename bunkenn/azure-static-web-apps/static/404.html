@@ -16,9 +16,9 @@
         font-family: "Segoe UI", "Hiragino Sans", sans-serif;
       }
       main {
-        max-width: 420px;
+        max-width: 460px;
         padding: 24px;
-        border-radius: 18px;
+        border-radius: 8px;
         background: #fffbeb;
         border: 1px solid #fcd34d;
         box-shadow: 0 12px 30px rgba(28, 25, 23, 0.08);
@@ -28,11 +28,15 @@
         font-size: 24px;
       }
       p {
-        margin: 0;
+        margin: 0 0 12px;
         line-height: 1.6;
       }
+      p:last-child {
+        margin-bottom: 0;
+      }
       code {
-        font-family: "SFMono-Regular", Consolas, monospace;
+        overflow-wrap: anywhere;
+        font-family: Consolas, "SFMono-Regular", monospace;
       }
     </style>
   </head>
@@ -40,6 +44,10 @@
     <main>
       <h1>404</h1>
       <p>指定された静的ファイルは見つかりませんでした。manifest や ribbon が参照する URL を確認してください。</p>
+      <p><code id="requested-path"></code></p>
     </main>
+    <script>
+      document.getElementById("requested-path").textContent = window.location.href;
+    </script>
   </body>
 </html>
