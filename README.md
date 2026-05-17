@@ -22,6 +22,24 @@ cd bunkenn\azure-static-web-apps\api
 func start
 ```
 
+Smoke checks:
+
+```powershell
+Invoke-WebRequest `
+  -Method POST `
+  -Uri "http://localhost:7071/api/addin/auth/session?_debug=env" `
+  -UseBasicParsing
+
+Invoke-WebRequest `
+  -Uri "http://localhost:7071/api/addin/papers?_debug=version" `
+  -UseBasicParsing
+```
+
+`GET /api/addin/papers?q=` returns `401` until the add-in logs in and sends a
+Supabase access token. A local `AzureWebJobsStorage` health warning can appear
+when Azurite is not running; the HTTP endpoints above can still be used for
+debugging.
+
 ## Test
 
 ```powershell
