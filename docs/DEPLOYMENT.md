@@ -1,5 +1,16 @@
 # Deployment
 
+## Recommended Free Host
+
+Use Vercel Hobby when Azure is unavailable. Vercel can serve the static task pane
+and Python API from the same origin.
+
+Vercel files in this repo:
+
+- `vercel.json`
+- `api/addin/[...path].py`
+- `requirements.txt`
+
 ## Goal
 
 Run `bunken Word` without localhost by hosting the task pane and API on Azure
@@ -79,3 +90,38 @@ bunkenn/manifest.production.xml
 
 This manifest points Word to the Azure Static Web Apps URL, so Word no longer
 needs the local Functions host or SWA CLI.
+
+## Vercel Deployment
+
+1. Import `luka8267/word_addin` into Vercel.
+2. Use the repository root as the Vercel project root.
+3. Keep the framework preset as `Other`.
+4. Set environment variables:
+
+```text
+SUPABASE_URL=https://udhgdndfcmdgpnxpksvo.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<Supabase anon or publishable key>
+```
+
+Optional debug variable:
+
+```text
+BUNKEN_ENABLE_DEBUG_ENDPOINTS=true
+```
+
+5. Deploy the `main` branch.
+6. Check:
+
+```powershell
+curl.exe -L https://<your-vercel-app>.vercel.app/taskpane.html
+curl.exe -L "https://<your-vercel-app>.vercel.app/api/addin/papers?_debug=version"
+```
+
+7. Generate a production manifest for the Vercel URL:
+
+```powershell
+$env:BUNKEN_PUBLIC_BASE_URL="https://<your-vercel-app>.vercel.app"
+python bunkenn\generate_manifest.py
+```
+
+Use `bunkenn/manifest.production.xml` in Word.
