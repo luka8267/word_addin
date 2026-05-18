@@ -1,5 +1,9 @@
 # word_addin
 
+## Deployment
+
+- [Deployment without localhost](docs/DEPLOYMENT.md)
+
 ## Local Supabase API setup
 
 Copy the example settings file and paste the same anon/publishable key used by

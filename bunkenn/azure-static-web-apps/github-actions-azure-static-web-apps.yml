@@ -22,8 +22,8 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "azure-static-web-apps/static"
-          api_location: "azure-static-web-apps/api"
+          app_location: "bunkenn/azure-static-web-apps/static"
+          api_location: "bunkenn/azure-static-web-apps/api"
           output_location: ""
 
   close_pull_request_job:
