@@ -11,17 +11,17 @@
   <DefaultLocale>ja-JP</DefaultLocale>
   <DisplayName DefaultValue="bunken Word"/>
   <Description DefaultValue="Word citation and bibliography add-in for bunken"/>
-  <IconUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-80.png"/>
-  <SupportUrl DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+  <IconUrl DefaultValue="https://word-addin-sooty.vercel.app/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="https://word-addin-sooty.vercel.app/assets/icon-80.png"/>
+  <SupportUrl DefaultValue="https://word-addin-sooty.vercel.app/taskpane.html"/>
   <AppDomains>
-    <AppDomain>https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net</AppDomain>
+    <AppDomain>https://word-addin-sooty.vercel.app</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+    <SourceLocation DefaultValue="https://word-addin-sooty.vercel.app/taskpane.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -31,7 +31,7 @@
       </bt:Sets>
     </Requirements>
     <Hosts>
-      <Host xsi:type="WordHost">
+      <Host xsi:type="Document">
         <DesktopFormFactor>
           <GetStarted>
             <Title resid="GetStarted.Title"/>
@@ -72,14 +72,14 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-16.png"/>
-        <bt:Image id="Icon.32" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-32.png"/>
-        <bt:Image id="Icon.80" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/assets/icon-80.png"/>
+        <bt:Image id="Icon.16" DefaultValue="https://word-addin-sooty.vercel.app/assets/icon-16.png"/>
+        <bt:Image id="Icon.32" DefaultValue="https://word-addin-sooty.vercel.app/assets/icon-32.png"/>
+        <bt:Image id="Icon.80" DefaultValue="https://word-addin-sooty.vercel.app/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
-        <bt:Url id="Commands.Url" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net/taskpane.html"/>
+        <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://word-addin-sooty.vercel.app/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="https://word-addin-sooty.vercel.app/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://word-addin-sooty.vercel.app/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="bunken Word"/>
