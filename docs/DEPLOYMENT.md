@@ -8,8 +8,9 @@ and Python API from the same origin.
 Vercel files in this repo:
 
 - `vercel.json`
-- `api/addin/[...path].py`
+- `api/addin/*`
 - `requirements.txt`
+- `package.json`
 
 ## Goal
 
@@ -96,7 +97,9 @@ needs the local Functions host or SWA CLI.
 1. Import `luka8267/word_addin` into Vercel.
 2. Use the repository root as the Vercel project root.
 3. Keep the framework preset as `Other`.
-4. Set environment variables:
+4. Build command: `npm run build`.
+5. Output directory: `public`.
+6. Set environment variables:
 
 ```text
 SUPABASE_URL=https://udhgdndfcmdgpnxpksvo.supabase.co
@@ -109,15 +112,15 @@ Optional debug variable:
 BUNKEN_ENABLE_DEBUG_ENDPOINTS=true
 ```
 
-5. Deploy the `main` branch.
-6. Check:
+7. Deploy the `main` branch.
+8. Check:
 
 ```powershell
 curl.exe -L https://<your-vercel-app>.vercel.app/taskpane.html
 curl.exe -L "https://<your-vercel-app>.vercel.app/api/addin/papers?_debug=version"
 ```
 
-7. Generate a production manifest for the Vercel URL:
+9. Generate a production manifest for the Vercel URL:
 
 ```powershell
 $env:BUNKEN_PUBLIC_BASE_URL="https://<your-vercel-app>.vercel.app"
