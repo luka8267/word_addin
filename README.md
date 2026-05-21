@@ -96,3 +96,23 @@ python -m py_compile `
 node --check bunkenn\word-app\static\taskpane.js
 npm run build
 ```
+
+## Production checklist
+
+Before release:
+
+- confirm Vercel env vars: `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`
+- keep `BUNKEN_ENABLE_DEBUG_ENDPOINTS=false` unless actively debugging
+- run the test commands above
+- generate a production manifest only when the public URL changed
+- clear Word add-in cache after replacing a local manifest
+
+After release:
+
+```powershell
+curl.exe -L "https://word-addin-sooty.vercel.app/taskpane.html"
+curl.exe -L "https://word-addin-sooty.vercel.app/api/addin/papers?_debug=version"
+```
+
+Then smoke-test login, search, citation insertion, bibliography update, style
+switching, and document citation sync in Word.
