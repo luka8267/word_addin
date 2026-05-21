@@ -1012,6 +1012,29 @@
     }).join(activeStyle === "ieee" ? "," : ",");
   }
 
+  function toSuperscriptText(value) {
+    const superscriptCharacters = {
+      "0": "⁰",
+      "1": "¹",
+      "2": "²",
+      "3": "³",
+      "4": "⁴",
+      "5": "⁵",
+      "6": "⁶",
+      "7": "⁷",
+      "8": "⁸",
+      "9": "⁹",
+      "(": "⁽",
+      ")": "⁾",
+      "-": "⁻",
+      "+": "⁺",
+      "=": "⁼",
+    };
+    return String(value || "").replace(/[0-9()\-+=]/g, function (character) {
+      return superscriptCharacters[character] || character;
+    });
+  }
+
   function mapCitationsByControlId(citations) {
     const byControlId = new Map();
     for (const citation of citations || []) {
@@ -1077,6 +1100,7 @@
         values.push(`${renderedText})`);
         values.push(`[${renderedText}]`);
       }
+      values.push(toSuperscriptText(renderedText));
     }
     (citation && citation.referenceNumbers || []).forEach(function (number) {
       const value = String(number || "").trim();
@@ -1084,6 +1108,8 @@
         values.push(value);
         values.push(`${value})`);
         values.push(`[${value}]`);
+        values.push(toSuperscriptText(value));
+        values.push(toSuperscriptText(`${value})`));
       }
     });
     return Array.from(new Set(values.filter(Boolean))).sort(function (left, right) {
@@ -1197,8 +1223,10 @@
   }
 
   function applyCitationFormatting(control, referenceLabel, style) {
-    const insertedRange = control.insertText(referenceLabel, Word.InsertLocation.replace);
-    insertedRange.font.superscript = shouldSuperscriptStyle(style);
+    const displayLabel = shouldSuperscriptStyle(style)
+      ? toSuperscriptText(referenceLabel)
+      : referenceLabel;
+    control.insertText(displayLabel, Word.InsertLocation.replace);
   }
 
   async function refreshCitationsForStyle(documentState) {
