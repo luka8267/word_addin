@@ -12,26 +12,29 @@ Vercel files in this repo:
 - `requirements.txt`
 - `package.json`
 
-## Goal
+## Current Production Host
 
-Run `bunken Word` without localhost by hosting the task pane and API on Azure
-Static Web Apps.
+Run `bunken Word` without localhost by hosting the task pane and API on Vercel.
 
 Production URL currently used by the manifest:
 
 ```text
-https://jolly-smoke-0e8ae9a10.7.azurestaticapps.net
+https://word-addin-sooty.vercel.app
 ```
 
 ## GitHub Actions
 
-The active workflow is:
+The Azure Static Web Apps workflow is kept only as a manual legacy fallback:
 
 ```text
 .github/workflows/azure-static-web-apps-jolly-smoke-0e8ae9a10.yml
 ```
 
-It deploys:
+It is intentionally `workflow_dispatch` only. Do not use it for normal
+deployment unless Azure Static Web Apps is restored and the deployment token is
+rotated. Normal production deploys happen on Vercel from the `main` branch.
+
+The legacy Azure workflow deploys:
 
 - Static app: `bunkenn/azure-static-web-apps/static`
 - API: `bunkenn/azure-static-web-apps/api`
@@ -42,9 +45,9 @@ Required GitHub secret:
 AZURE_STATIC_WEB_APPS_API_TOKEN_JOLLY_SMOKE_0E8AE9A10
 ```
 
-If this secret is missing or expired, GitHub can push successfully but Azure
-will not deploy the latest files. A stale deployment often appears as a 404 for
-`/taskpane.html`.
+If this secret is missing, expired, or belongs to a deleted Static Web App,
+manual Azure runs fail with `No matching Static Web App was found or the api key
+was invalid.` This does not affect the Vercel production add-in.
 
 ## Azure Static Web Apps Environment Variables
 
@@ -89,8 +92,8 @@ Use:
 bunkenn/manifest.production.xml
 ```
 
-This manifest points Word to the Azure Static Web Apps URL, so Word no longer
-needs the local Functions host or SWA CLI.
+This manifest points Word to the Vercel URL, so Word no longer needs the local
+Functions host or SWA CLI.
 
 ## Vercel Deployment
 
