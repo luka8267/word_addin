@@ -24,6 +24,8 @@
     editingCitation: null,
     isLibraryOpen: false,
     hasLoadedLibrary: false,
+    isDocumentCitationsOpen: false,
+    hasLoadedDocumentCitations: false,
     auth: loadAuthState(),
   };
 
@@ -63,6 +65,8 @@
   const deleteCitationButton = document.getElementById("delete-citation-button");
   const refreshBibliographyButton = document.getElementById("refresh-bibliography-button");
   const documentCitationsMessage = document.getElementById("document-citations-message");
+  const documentCitationsPanel = document.getElementById("document-citations-panel");
+  const documentCitationsToggleButton = document.getElementById("document-citations-toggle-button");
   const documentCitationsList = document.getElementById("document-citations-list");
   const refreshDocumentCitationsButton = document.getElementById("refresh-document-citations-button");
   const checkDocumentCitationsButton = document.getElementById("check-document-citations-button");
@@ -124,6 +128,23 @@
 
   function setStatus(message) { status.textContent = message; }
 
+  function formatOfficeError(error, fallbackMessage) {
+    if (!error) {
+      return fallbackMessage;
+    }
+    const parts = [];
+    if (error.message) {
+      parts.push(error.message);
+    }
+    if (error.code) {
+      parts.push(`code=${error.code}`);
+    }
+    if (error.debugInfo && error.debugInfo.errorLocation) {
+      parts.push(`location=${error.debugInfo.errorLocation}`);
+    }
+    return parts.length > 0 ? parts.join(" | ") : fallbackMessage;
+  }
+
   function setReady(isReady) {
     state.isReady = isReady;
     readyBadge.textContent = isReady ? "Ready" : "Loading";
@@ -164,6 +185,7 @@
     searchInput.disabled = disabled;
     refreshPapersButton.disabled = !state.isReady || state.isBusy || !authenticated;
     libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
+    documentCitationsToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     styleSelect.disabled = disabled;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
@@ -219,7 +241,6 @@
           const control = insertedRange.insertContentControl();
           control.tag = CITATION_TAG;
           control.title = "bunken citation";
-          control.font.superscript = true;
           context.load(control, "id");
           await context.sync();
 
@@ -239,13 +260,14 @@
       await refreshCitationsForStyle(documentState);
       const syncResult = await saveAndSyncDocumentState(documentState);
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       setStatus(
         syncResult && syncResult.synced === false
           ? `引用を挿入しました（DB同期は未完了）: ${paper.title}`
           : `引用を挿入しました: ${paper.title}`
       );
     } catch (error) {
-      setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
+      setStatus(formatOfficeError(error, "引用の挿入に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -328,6 +350,13 @@
   function renderLibraryState() {
     libraryPanel.classList.toggle("hidden", !state.isLibraryOpen);
     libraryToggleButton.textContent = state.isLibraryOpen ? "一覧を閉じる" : "一覧を開く";
+  }
+
+  function renderDocumentCitationsPanelState() {
+    documentCitationsPanel.classList.toggle("hidden", !state.isDocumentCitationsOpen);
+    documentCitationsToggleButton.textContent = state.isDocumentCitationsOpen
+      ? "引用一覧を閉じる"
+      : "引用一覧を開く";
   }
 
   function findKnownPaper(paperId) {
@@ -463,11 +492,15 @@
     const updatedAt = formatDateTime(state.documentInfo && state.documentInfo.updatedAt);
     const updatedText = updatedAt ? ` 最終同期: ${updatedAt}` : "";
     if (citations.length === 0) {
-      documentCitationsMessage.textContent = `この文書にはまだ同期済みの引用がありません。${updatedText}`;
+      documentCitationsMessage.textContent = state.isDocumentCitationsOpen
+        ? `この文書にはまだ同期済みの引用がありません。${updatedText}`
+        : `この文書の引用は閉じています。${updatedText}`;
       return;
     }
 
-    documentCitationsMessage.textContent = `${citations.length} 件の引用を表示しています。${updatedText}`;
+    documentCitationsMessage.textContent = state.isDocumentCitationsOpen
+      ? `${citations.length} 件の引用を表示しています。${updatedText}`
+      : `${citations.length} 件の引用があります。${updatedText}`;
     citations.forEach(function (citation, index) {
       const item = document.createElement("button");
       item.type = "button";
@@ -663,6 +696,7 @@
     documentState.style = getCurrentStyle();
     await updateBibliographyFromState(documentState);
     await loadDocumentCitationSummary(documentState);
+    state.hasLoadedDocumentCitations = true;
     await checkDocumentCitationSync(documentState);
     return {
       documentState,
@@ -777,6 +811,7 @@
 
     await updateBibliographyFromState(documentState);
     await loadDocumentCitationSummary(documentState);
+    state.hasLoadedDocumentCitations = true;
     await checkDocumentCitationSync(documentState);
     clearEditingCitation();
     selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
@@ -1163,7 +1198,6 @@
 
   function applyCitationFormatting(control, referenceLabel, style) {
     control.insertText(referenceLabel, Word.InsertLocation.replace);
-    control.font.superscript = shouldSuperscriptStyle(style);
   }
 
   async function refreshCitationsForStyle(documentState) {
@@ -1531,8 +1565,11 @@
     state.editingCitationControlId = "";
     state.editingCitation = null;
     state.selectedPaper = null;
+    state.isDocumentCitationsOpen = false;
+    state.hasLoadedDocumentCitations = false;
     searchInput.value = "";
     searchResults.innerHTML = "";
+    renderDocumentCitationsPanelState();
     renderDocumentCitations();
     renderDocumentSyncIssues();
     authMessage.textContent = "bunkenn のアカウントでログインすると、その人の文献だけが表示されます。";
@@ -1559,7 +1596,7 @@
           : `${state.results.length} 件見つかりました。`;
         renderResults();
       } catch (error) {
-        searchMessage.textContent = error && error.message ? error.message : "検索に失敗しました。";
+        searchMessage.textContent = formatOfficeError(error, "検索に失敗しました。");
       } finally {
         setBusy(false);
       }
@@ -1576,7 +1613,7 @@
       await refreshPaperViews();
       setStatus("文献一覧を更新しました。");
     } catch (error) {
-      const message = error && error.message ? error.message : "文献の更新に失敗しました。";
+      const message = formatOfficeError(error, "文献の更新に失敗しました。");
       searchMessage.textContent = message;
       if (state.isLibraryOpen) {
         libraryMessage.textContent = message;
@@ -1604,7 +1641,30 @@
         : `${state.libraryResults.length} 件の文献を表示しています。`;
       renderLibraryResults();
     } catch (error) {
-      libraryMessage.textContent = error && error.message ? error.message : "文献一覧の読み込みに失敗しました。";
+      libraryMessage.textContent = formatOfficeError(error, "文献一覧の読み込みに失敗しました。");
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  documentCitationsToggleButton.addEventListener("click", async function () {
+    state.isDocumentCitationsOpen = !state.isDocumentCitationsOpen;
+    renderDocumentCitationsPanelState();
+    renderDocumentCitations();
+    if (!state.isDocumentCitationsOpen || state.hasLoadedDocumentCitations) {
+      return;
+    }
+
+    setBusy(true);
+    documentCitationsMessage.textContent = "この文書の引用を読み込んでいます...";
+    try {
+      const documentState = await loadDocumentState();
+      await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
+    } catch (error) {
+      const message = error && error.message ? error.message : "この文書の引用を読み込めませんでした。";
+      documentCitationsMessage.textContent = message;
+      setStatus(message);
     } finally {
       setBusy(false);
     }
@@ -1673,6 +1733,7 @@
       }).length;
       await saveAndSyncDocumentState(documentState);
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       await checkDocumentCitationSync(documentState);
       setStatus(`この文書の引用一覧を更新しました。引用文同期: ${contextCount}/${(documentState.citations || []).length}件`);
     } catch (error) {
@@ -1690,6 +1751,7 @@
     try {
       const documentState = await loadDocumentState();
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       const issues = await checkDocumentCitationSync(documentState);
       setStatus(issues.length === 0 ? "引用の同期状態は正常です。" : "引用の同期確認が必要です。");
     } catch (error) {
@@ -1709,6 +1771,7 @@
       await refreshCitationsForStyle(documentState);
       await saveAndSyncDocumentState(documentState);
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       const issues = await checkDocumentCitationSync(documentState);
       setStatus(issues.length === 0 ? "引用同期を修復しました。" : "一部の引用は手動確認が必要です。");
     } catch (error) {
@@ -1726,6 +1789,7 @@
       documentState.style = getCurrentStyle();
       await updateBibliographyFromState(documentState);
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       setStatus("引用スタイルを更新しました。");
     } catch (error) {
       setStatus(error && error.message ? error.message : "引用スタイルの更新に失敗しました。");
@@ -1741,6 +1805,7 @@
       const documentState = await loadDocumentState();
       const result = await updateBibliographyFromState(documentState);
       await loadDocumentCitationSummary(documentState);
+      state.hasLoadedDocumentCitations = true;
       setStatus(`参考文献を更新しました。引用文同期: ${result.contextCount}/${(documentState.citations || []).length}件`);
     } catch (error) {
       setStatus(error && error.message ? error.message : "参考文献の更新に失敗しました。");
@@ -1769,7 +1834,6 @@
           if ((documentState.citations || []).length > 0) {
             await saveAndSyncDocumentState(documentState);
           }
-          await loadDocumentCitationSummary(documentState);
           setStatus("bunkenn に接続しました。");
         } else {
           saveAuthState(null);
