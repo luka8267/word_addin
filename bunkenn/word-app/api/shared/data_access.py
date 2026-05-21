@@ -8,8 +8,6 @@ from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
-import azure.functions as func
-
 from .bunken_models import PaperSummary
 
 
@@ -70,7 +68,7 @@ def debug_endpoints_enabled() -> bool:
     return DEBUG_ENDPOINTS_ENABLED
 
 
-def build_auth_diagnostics(req: func.HttpRequest) -> dict:
+def build_auth_diagnostics(req) -> dict:
     token = extract_bearer_token(req)
     payload = decode_jwt_payload_unverified(token)
     issuer = payload.get("iss", "") or ""
@@ -145,7 +143,7 @@ def paper_from_mapping(item: dict) -> PaperSummary:
     )
 
 
-def extract_bearer_token(req: func.HttpRequest) -> str:
+def extract_bearer_token(req) -> str:
     custom_token = (req.headers.get("x-bunken-access-token") or "").strip()
     if is_supabase_access_token(custom_token):
         return custom_token
@@ -158,7 +156,7 @@ def extract_bearer_token(req: func.HttpRequest) -> str:
     return ""
 
 
-def extract_header_context(req: func.HttpRequest) -> dict[str, str]:
+def extract_header_context(req) -> dict[str, str]:
     user_id = (req.headers.get("x-bunken-user-id") or "").strip()
     if not user_id:
         return {}
@@ -270,7 +268,7 @@ def build_default_context() -> dict[str, str]:
     }
 
 
-def resolve_request_context(req: func.HttpRequest) -> dict[str, str]:
+def resolve_request_context(req) -> dict[str, str]:
     token = extract_bearer_token(req)
     if token and use_supabase():
         return build_context_from_token(token)

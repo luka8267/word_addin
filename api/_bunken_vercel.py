@@ -5,7 +5,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 
-API_ROOT = Path(__file__).resolve().parents[1] / "bunkenn" / "azure-static-web-apps" / "api"
+API_ROOT = Path(__file__).resolve().parents[1] / "bunkenn" / "word-app" / "api"
 if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 

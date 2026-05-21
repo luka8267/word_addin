@@ -2,5 +2,8 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 *.log
+.DS_Store
+**/.DS_Store
 public/
 bunkenn/manifest.local*.xml
+bunkenn/word-app/static/https_server.py

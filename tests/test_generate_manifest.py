@@ -23,7 +23,7 @@ class GenerateManifestTests(unittest.TestCase):
 
         self.assertTrue(root.tag.endswith("OfficeApp"))
         self.assertIn("http://localhost:4280/taskpane.html", manifest)
-        self.assertNotIn("jolly-smoke", manifest)
+        self.assertNotIn("word-addin-sooty.vercel.app", manifest)
 
     def test_local_taskpane_manifest_has_no_version_overrides(self):
         manifest = generate_manifest.render_manifest(

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-STATIC_ROOT = ROOT / "azure-static-web-apps" / "static"
+STATIC_ROOT = ROOT / "word-app" / "static"
 BASE_URL = "__BASE_URL__"
 MINIMAL_ADDIN_ID = "__MINIMAL_ADDIN_ID__"
 COMMANDS_ADDIN_ID = "__COMMANDS_ADDIN_ID__"
@@ -421,7 +421,7 @@ def generate_production_manifests() -> None:
     write_manifest(ROOT / "manifest.production.xml", full_manifest)
 
     if not (STATIC_ROOT / "taskpane.minimal.html").exists():
-        print("warning: taskpane.minimal.html was not found under azure-static-web-apps/static")
+        print("warning: taskpane.minimal.html was not found under word-app/static")
 
 
 def generate_local_manifests() -> None:

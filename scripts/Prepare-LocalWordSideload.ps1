@@ -44,7 +44,7 @@ if ($CheckLocalServer) {
         Write-Host ""
     } catch {
         Write-Warning "Local server check failed: $($_.Exception.Message)"
-        Write-Warning "Start Functions and SWA CLI before opening the add-in in Word."
+        Write-Warning "Start the local Vercel-compatible server before opening the add-in in Word."
         Write-Host ""
     }
 }

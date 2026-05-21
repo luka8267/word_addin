@@ -1,1 +1,1 @@
-azure-functions
+# No external Python packages are required by the Vercel API wrappers.

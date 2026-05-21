@@ -1,80 +1,38 @@
 # word_addin
 
+Word citation add-in for bunken. The production task pane and API are deployed
+on Vercel.
+
 ## Deployment
 
 - [Deployment without localhost](docs/DEPLOYMENT.md)
 
-## Local Supabase API setup
+## App Layout
 
-Copy the example settings file and paste the same anon/publishable key used by
-the Streamlit app:
+- `bunkenn\word-app\static`: Word task pane static files.
+- `bunkenn\word-app\api\shared`: shared API logic used by Vercel handlers.
+- `api\addin\*`: Vercel Python API entry points.
+- `public`: generated static output for Vercel.
 
-```powershell
-Copy-Item `
-  bunkenn\azure-static-web-apps\api\local.settings.json.example `
-  bunkenn\azure-static-web-apps\api\local.settings.json
-```
+## Local Taskpane and API
 
-Do not put a service-role key in `local.settings.json` unless you are doing a
-server-only maintenance task. The add-in's normal login/search/sync flow should
-use `SUPABASE_PUBLISHABLE_KEY`.
-
-To run Azure Functions locally, install Azure Functions Core Tools, then run:
+Build the static task pane into `public`:
 
 ```powershell
-cd bunkenn\azure-static-web-apps\api
-func start
+npm run build
 ```
 
-Smoke checks:
+Run Vercel locally when you want the task pane and API on one origin:
 
 ```powershell
-Invoke-WebRequest `
-  -Method POST `
-  -Uri "http://localhost:7071/api/addin/auth/session?_debug=env" `
-  -UseBasicParsing
-
-Invoke-WebRequest `
-  -Uri "http://localhost:7071/api/addin/papers?_debug=version" `
-  -UseBasicParsing
+npx vercel dev
 ```
 
-`GET /api/addin/papers?q=` returns `401` until the add-in logs in and sends a
-Supabase access token. A local `AzureWebJobsStorage` health warning can appear
-when Azurite is not running; the HTTP endpoints above can still be used for
-debugging.
+Then open the local URL shown by Vercel, usually:
 
-## Local taskpane and API
-
-For the closest local add-in check, run the API with Azure Functions and serve
-the static taskpane through Azure Static Web Apps CLI:
-
-```powershell
-cd bunkenn\azure-static-web-apps\api
-func start --port 7071 --cors *
+```text
+http://localhost:3000/taskpane.html
 ```
-
-In a second terminal:
-
-```powershell
-cd bunkenn\azure-static-web-apps
-npx -y @azure/static-web-apps-cli start ./static `
-  --api-devserver-url http://localhost:7071 `
-  --port 4280 `
-  --ssl `
-  --ssl-cert "$env:USERPROFILE\.office-addin-dev-certs\localhost.crt" `
-  --ssl-key "$env:USERPROFILE\.office-addin-dev-certs\localhost.key"
-```
-
-Install the localhost certificate first if needed:
-
-```powershell
-npx -y office-addin-dev-certs install
-```
-
-Open `https://localhost:4280/taskpane.html`. The taskpane will call
-`https://localhost:4280/api/...`, and SWA CLI proxies those requests to the
-local Functions host.
 
 Generate local sideload manifests:
 
@@ -83,25 +41,23 @@ python bunkenn\generate_manifest.py --local
 ```
 
 This writes `bunkenn\manifest.local.xml` plus diagnostic variants such as
-`manifest.local.minimal.xml`. These files point to `http://localhost:4280` and
-are ignored by Git. Override the URL only when needed:
+`manifest.local.minimal.xml`. These files point to `http://localhost:4280` by
+default and are ignored by Git. Override the URL when needed:
 
 ```powershell
-$env:BUNKEN_LOCAL_BASE_URL="https://localhost:4280"
+$env:BUNKEN_LOCAL_BASE_URL="http://localhost:3000"
 python bunkenn\generate_manifest.py --local
 ```
 
 For Windows Word Desktop, use `bunkenn\manifest.local.xml` as the sideload
-manifest after the local Functions host and SWA emulator are running. The local
-default is a taskpane-only manifest because it is the most reliable desktop
-sideload path. Ribbon command manifests are still generated as diagnostic
-variants. If Word does not refresh after replacing the manifest, close Word and
-clear the Office add-in cache before trying again.
+manifest after the local Vercel-compatible server is running. If Word does not
+refresh after replacing the manifest, close Word and clear the Office add-in
+cache before trying again.
 
 To prepare a Windows shared-folder catalog copy:
 
 ```powershell
-.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer
+.\scripts\Prepare-LocalWordSideload.ps1 -BaseUrl "http://localhost:3000" -CheckLocalServer
 ```
 
 This generates the local manifest and copies it to
@@ -110,19 +66,7 @@ loads test add-ins from a trusted shared-folder catalog, so either share that
 folder manually or run PowerShell as Administrator with `-CreateShare`:
 
 ```powershell
-.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -CreateShare
-```
-
-To troubleshoot the add-in catalog itself, prepare the minimal manifest instead:
-
-```powershell
-.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant minimal
-```
-
-To test the ribbon command manifest, use:
-
-```powershell
-.\scripts\Prepare-LocalWordSideload.ps1 -CheckLocalServer -ManifestVariant full
+.\scripts\Prepare-LocalWordSideload.ps1 -BaseUrl "http://localhost:3000" -CheckLocalServer -CreateShare
 ```
 
 If Word keeps showing an old taskpane or 404 after the manifest changes, close
@@ -137,22 +81,18 @@ If Word or WebView processes are stuck, rerun with `-CloseWord`.
 Then add the network share, for example `\\localhost\bunken-word-addin-catalog`,
 under Word's trusted add-in catalogs, restart Word, and open the add-in from
 `Insert > My Add-ins > Shared Folder`.
-Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](https://learn.microsoft.com/en-us/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins).
 
-With Node.js 24, `swa start ./static --api-location ./api` can fail because the
-CLI rejects the Functions Core Tools/Node version combination. Use the
-`--api-devserver-url` flow above unless you switch to a Functions-supported
-Node LTS version.
+Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](https://learn.microsoft.com/en-us/office/dev/add-ins/testing/create-a-network-shared-folder-catalog-for-task-pane-and-content-add-ins).
 
 ## Test
 
 ```powershell
-python -m pip install -r bunkenn\azure-static-web-apps\api\requirements.txt
 python -m unittest discover -s tests -v
 python -m py_compile `
-  bunkenn\azure-static-web-apps\api\shared\data_access.py `
-  bunkenn\azure-static-web-apps\api\shared\bunken_service.py `
-  bunkenn\azure-static-web-apps\api\shared\bunken_models.py `
-  bunkenn\azure-static-web-apps\api\addin_papers\__init__.py `
-  bunkenn\azure-static-web-apps\api\addin_documents_sync\__init__.py
+  api\_bunken_vercel.py `
+  bunkenn\word-app\api\shared\data_access.py `
+  bunkenn\word-app\api\shared\bunken_service.py `
+  bunkenn\word-app\api\shared\bunken_models.py
+node --check bunkenn\word-app\static\taskpane.js
+npm run build
 ```
