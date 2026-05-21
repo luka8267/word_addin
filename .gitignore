@@ -7,3 +7,4 @@ __pycache__/
 public/
 bunkenn/manifest.local*.xml
 bunkenn/word-app/static/https_server.py
+.vercel
