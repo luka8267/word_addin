@@ -124,6 +124,23 @@
 
   function setStatus(message) { status.textContent = message; }
 
+  function formatOfficeError(error, fallbackMessage) {
+    if (!error) {
+      return fallbackMessage;
+    }
+    const parts = [];
+    if (error.message) {
+      parts.push(error.message);
+    }
+    if (error.code) {
+      parts.push(`code=${error.code}`);
+    }
+    if (error.debugInfo && error.debugInfo.errorLocation) {
+      parts.push(`location=${error.debugInfo.errorLocation}`);
+    }
+    return parts.length > 0 ? parts.join(" | ") : fallbackMessage;
+  }
+
   function setReady(isReady) {
     state.isReady = isReady;
     readyBadge.textContent = isReady ? "Ready" : "Loading";
@@ -219,7 +236,6 @@
           const control = insertedRange.insertContentControl();
           control.tag = CITATION_TAG;
           control.title = "bunken citation";
-          control.font.superscript = true;
           context.load(control, "id");
           await context.sync();
 
@@ -245,7 +261,7 @@
           : `引用を挿入しました: ${paper.title}`
       );
     } catch (error) {
-      setStatus(error && error.message ? error.message : "引用の挿入に失敗しました。");
+      setStatus(formatOfficeError(error, "引用の挿入に失敗しました。"));
     } finally {
       setBusy(false);
     }
@@ -1163,7 +1179,6 @@
 
   function applyCitationFormatting(control, referenceLabel, style) {
     control.insertText(referenceLabel, Word.InsertLocation.replace);
-    control.font.superscript = shouldSuperscriptStyle(style);
   }
 
   async function refreshCitationsForStyle(documentState) {
@@ -1559,7 +1574,7 @@
           : `${state.results.length} 件見つかりました。`;
         renderResults();
       } catch (error) {
-        searchMessage.textContent = error && error.message ? error.message : "検索に失敗しました。";
+        searchMessage.textContent = formatOfficeError(error, "検索に失敗しました。");
       } finally {
         setBusy(false);
       }
@@ -1576,7 +1591,7 @@
       await refreshPaperViews();
       setStatus("文献一覧を更新しました。");
     } catch (error) {
-      const message = error && error.message ? error.message : "文献の更新に失敗しました。";
+      const message = formatOfficeError(error, "文献の更新に失敗しました。");
       searchMessage.textContent = message;
       if (state.isLibraryOpen) {
         libraryMessage.textContent = message;
@@ -1604,7 +1619,7 @@
         : `${state.libraryResults.length} 件の文献を表示しています。`;
       renderLibraryResults();
     } catch (error) {
-      libraryMessage.textContent = error && error.message ? error.message : "文献一覧の読み込みに失敗しました。";
+      libraryMessage.textContent = formatOfficeError(error, "文献一覧の読み込みに失敗しました。");
     } finally {
       setBusy(false);
     }
