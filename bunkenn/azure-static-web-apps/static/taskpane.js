@@ -488,10 +488,12 @@
       head.appendChild(reference);
       item.appendChild(head);
 
-      if (citation.contextText) {
+      const contextSnippet = formatCitationContextSnippet(citation);
+      if (contextSnippet) {
         const contextLine = document.createElement("span");
-        contextLine.className = "citation-paper";
-        contextLine.textContent = citation.contextText;
+        contextLine.className = "citation-paper citation-context";
+        contextLine.title = citation.contextText || "";
+        contextLine.textContent = contextSnippet;
         item.appendChild(contextLine);
       }
 
@@ -989,6 +991,46 @@
       return "";
     }
     return normalized.slice(0, 2000);
+  }
+
+  function trimCitationContextAroundMatch(text, matchText, beforeLength, afterLength) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+    const needle = String(matchText || "").trim();
+    const matchIndex = needle ? normalized.indexOf(needle) : -1;
+    if (!normalized) {
+      return "";
+    }
+
+    if (matchIndex < 0) {
+      return normalized.length > beforeLength + afterLength
+        ? `${normalized.slice(0, beforeLength + afterLength).trim()}...`
+        : normalized;
+    }
+
+    const start = Math.max(0, matchIndex - beforeLength);
+    const end = Math.min(normalized.length, matchIndex + needle.length + afterLength);
+    const prefix = start > 0 ? "... " : "";
+    const suffix = end < normalized.length ? " ..." : "";
+    return `${prefix}${normalized.slice(start, end).trim()}${suffix}`;
+  }
+
+  function formatCitationContextSnippet(citation) {
+    const contextText = String(citation && citation.contextText ? citation.contextText : "").trim();
+    if (!contextText) {
+      return "";
+    }
+
+    const candidates = citationTextCandidates(citation);
+    const matchedCandidate = candidates.find(function (candidate) {
+      return contextText.includes(candidate);
+    });
+    const snippet = trimCitationContextAroundMatch(
+      contextText,
+      matchedCandidate || citation.renderedText || "",
+      48,
+      80
+    );
+    return snippet ? `文脈: ${snippet}` : "";
   }
 
   function citationTextCandidates(citation) {
