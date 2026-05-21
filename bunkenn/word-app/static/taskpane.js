@@ -1197,6 +1197,10 @@
   }
 
   function applyCitationFormatting(control, referenceLabel, style) {
+    if (shouldSuperscriptStyle(style)) {
+      control.insertHtml(`<sup>${escapeHtml(referenceLabel)}</sup>`, Word.InsertLocation.replace);
+      return;
+    }
     control.insertText(referenceLabel, Word.InsertLocation.replace);
   }
 
