@@ -183,18 +183,21 @@
             <h2>この文書の引用</h2>
             <p id="document-citations-message" class="message">文書内で使っている文献を表示します。</p>
           </div>
-          <div>
+          <button id="document-citations-toggle-button" class="toggle-button" type="button">引用一覧を開く</button>
+        </div>
+        <div id="document-citations-panel" class="collapsible hidden">
+          <div class="inline-row start" style="margin-bottom:10px;">
             <button id="check-document-citations-button" class="toggle-button" type="button">チェック</button>
             <button id="refresh-document-citations-button" class="toggle-button" type="button">更新</button>
           </div>
+          <div id="document-sync-issues" class="sync-issues hidden"></div>
+          <button id="repair-document-citations-button" class="button secondary hidden" type="button">引用同期を修復</button>
+          <div id="document-citations-list" class="list"></div>
         </div>
-        <div id="document-sync-issues" class="sync-issues hidden"></div>
-        <button id="repair-document-citations-button" class="button secondary hidden" type="button">引用同期を修復</button>
-        <div id="document-citations-list" class="list"></div>
       </section>
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=citation-context-v5"></script>
+    <script src="./taskpane.js?v=document-citations-tab-v1"></script>
   </body>
 </html>
