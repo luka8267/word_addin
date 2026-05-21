@@ -286,7 +286,78 @@ def supabase_request_auth(context: dict[str, str]) -> dict[str, str | None]:
     return {"api_key": SUPABASE_ADMIN_KEY, "bearer_token": None}
 
 
-def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary]:
+def fetch_reference_ids_for_tag(context: dict[str, str], tag_name: str) -> set[str]:
+    normalized = (tag_name or "").strip()
+    if not normalized or not use_supabase():
+        return set()
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    tags = request_supabase(
+        "/rest/v1/tags",
+        query_params={"select": "id", "user_id": f"eq.{user_id}", "name": f"ilike.*{normalized}*"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    tag_ids = [str(row["id"]) for row in tags or [] if row.get("id")]
+    if not tag_ids:
+        return set()
+    tag_csv = ",".join(tag_ids)
+    paper_tags = request_supabase(
+        "/rest/v1/paper_tags",
+        query_params={"select": "paper_id", "tag_id": f"in.({tag_csv})"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    item_tags = request_supabase(
+        "/rest/v1/item_tags",
+        query_params={"select": "item_id", "tag_id": f"in.({tag_csv})"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    ids = {str(row.get("paper_id")) for row in paper_tags or [] if row.get("paper_id")}
+    ids.update(str(row.get("item_id")) for row in item_tags or [] if row.get("item_id"))
+    return ids
+
+
+def fetch_reference_ids_for_collection(context: dict[str, str], collection_name: str) -> set[str]:
+    normalized = (collection_name or "").strip()
+    if not normalized or not use_supabase():
+        return set()
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    collections = request_supabase(
+        "/rest/v1/collections",
+        query_params={"select": "id", "user_id": f"eq.{user_id}", "name": f"ilike.*{normalized}*"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    collection_ids = [str(row["id"]) for row in collections or [] if row.get("id")]
+    if not collection_ids:
+        return set()
+    collection_csv = ",".join(collection_ids)
+    paper_links = request_supabase(
+        "/rest/v1/collection_papers",
+        query_params={"select": "paper_id", "collection_id": f"in.({collection_csv})"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    item_links = request_supabase(
+        "/rest/v1/collection_items",
+        query_params={"select": "item_id", "collection_id": f"in.({collection_csv})"},
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    ids = {str(row.get("paper_id")) for row in paper_links or [] if row.get("paper_id")}
+    ids.update(str(row.get("item_id")) for row in item_links or [] if row.get("item_id"))
+    return ids
+
+
+def search_user_papers(
+    context: dict[str, str],
+    query: str,
+    tag: str = "",
+    collection: str = "",
+) -> list[PaperSummary]:
     user_id = context.get("userId", "")
 
     if use_supabase():
@@ -300,11 +371,15 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
         }
         if normalized_query:
             escaped_query = normalized_query.replace("%", r"\%").replace(",", r"\,")
-            params["or"] = (
-                f"(title.ilike.*{escaped_query}*,"
-                f"authors.ilike.*{escaped_query}*,"
-                f"journal.ilike.*{escaped_query}*)"
-            )
+            or_parts = [
+                f"title.ilike.*{escaped_query}*",
+                f"authors.ilike.*{escaped_query}*",
+                f"journal.ilike.*{escaped_query}*",
+                f"doi.ilike.*{escaped_query}*",
+            ]
+            if normalized_query.isdigit():
+                or_parts.append(f"year.eq.{normalized_query}")
+            params["or"] = f"({','.join(or_parts)})"
         auth = supabase_request_auth(context)
         try:
             rows = request_supabase(
@@ -323,6 +398,14 @@ def search_user_papers(context: dict[str, str], query: str) -> list[PaperSummary
                 bearer_token=auth["bearer_token"],
                 api_key=auth["api_key"],
             )
+        allowed_ids = None
+        if tag:
+            allowed_ids = fetch_reference_ids_for_tag(context, tag)
+        if collection:
+            collection_ids = fetch_reference_ids_for_collection(context, collection)
+            allowed_ids = collection_ids if allowed_ids is None else allowed_ids & collection_ids
+        if allowed_ids is not None:
+            rows = [row for row in rows if str(row.get("id")) in allowed_ids]
         return [paper_from_mapping(row) for row in rows]
 
     if use_sqlite():

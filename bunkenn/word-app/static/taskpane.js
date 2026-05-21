@@ -45,6 +45,8 @@
   const authMessage = document.getElementById("auth-message");
   const userMessage = document.getElementById("user-message");
   const searchInput = document.getElementById("search-input");
+  const tagFilterInput = document.getElementById("tag-filter-input");
+  const collectionFilterInput = document.getElementById("collection-filter-input");
   const searchMessage = document.getElementById("search-message");
   const searchResults = document.getElementById("search-results");
   const refreshPapersButton = document.getElementById("refresh-papers-button");
@@ -183,6 +185,8 @@
     logoutButton.disabled = state.isBusy || !state.isReady || !authenticated;
 
     searchInput.disabled = disabled;
+    tagFilterInput.disabled = disabled;
+    collectionFilterInput.disabled = disabled;
     refreshPapersButton.disabled = !state.isReady || state.isBusy || !authenticated;
     libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     documentCitationsToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
@@ -1493,6 +1497,14 @@
   async function searchPapers(query) {
     const url = new URL("/api/addin/papers", API_BASE_URL);
     url.searchParams.set("q", query);
+    const tagFilter = tagFilterInput.value.trim();
+    const collectionFilter = collectionFilterInput.value.trim();
+    if (tagFilter) {
+      url.searchParams.set("tag", tagFilter);
+    }
+    if (collectionFilter) {
+      url.searchParams.set("collection", collectionFilter);
+    }
     const response = await fetchJson(url.toString(), {
       method: "GET",
       headers: {
@@ -1597,6 +1609,8 @@
     state.isDocumentCitationsOpen = false;
     state.hasLoadedDocumentCitations = false;
     searchInput.value = "";
+    tagFilterInput.value = "";
+    collectionFilterInput.value = "";
     searchResults.innerHTML = "";
     renderDocumentCitationsPanelState();
     renderDocumentCitations();
@@ -1609,9 +1623,9 @@
   searchInput.addEventListener("input", function () {
     const query = searchInput.value.trim();
     if (state.searchTimerId) { window.clearTimeout(state.searchTimerId); }
-    if (!query) {
+    if (!query && !tagFilterInput.value.trim() && !collectionFilterInput.value.trim()) {
       state.results = [];
-      searchMessage.textContent = "タイトル、著者、雑誌名で検索できます。";
+      searchMessage.textContent = "タイトル、著者、雑誌名、DOI、年、タグ、コレクションで検索できます。";
       renderResults();
       return;
     }
@@ -1630,6 +1644,23 @@
         setBusy(false);
       }
     }, 350);
+  });
+
+  [tagFilterInput, collectionFilterInput].forEach(function (input) {
+    input.addEventListener("input", function () {
+      if (state.searchTimerId) { window.clearTimeout(state.searchTimerId); }
+      state.searchTimerId = window.setTimeout(async function () {
+        setBusy(true);
+        searchMessage.textContent = "絞り込み中...";
+        try {
+          await refreshPaperViews();
+        } catch (error) {
+          searchMessage.textContent = formatOfficeError(error, "絞り込みに失敗しました。");
+        } finally {
+          setBusy(false);
+        }
+      }, 350);
+    });
   });
 
   refreshPapersButton.addEventListener("click", async function () {

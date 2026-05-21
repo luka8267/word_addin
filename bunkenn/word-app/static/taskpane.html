@@ -129,8 +129,12 @@
           </div>
           <button id="refresh-papers-button" class="toggle-button" type="button">更新</button>
         </div>
-        <input id="search-input" placeholder="例: Suzuki 2024" />
-        <p id="search-message" class="message">タイトル、著者、雑誌名で検索できます。</p>
+        <input id="search-input" placeholder="例: Suzuki 2024 / DOI / 年" />
+        <div class="inline-row start">
+          <input id="tag-filter-input" placeholder="タグで絞り込み" />
+          <input id="collection-filter-input" placeholder="コレクションで絞り込み" />
+        </div>
+        <p id="search-message" class="message">タイトル、著者、雑誌名、DOI、年、タグ、コレクションで検索できます。</p>
         <div id="search-results" class="list"></div>
       </section>
 

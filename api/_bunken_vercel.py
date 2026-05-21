@@ -126,7 +126,12 @@ def handle_papers(handler):
             return
         handler.json_response({"version": "citation-context-sync-v1"})
         return
-    papers = search_user_papers(resolve_request_context(req), req.params.get("q", ""))
+    papers = search_user_papers(
+        resolve_request_context(req),
+        req.params.get("q", ""),
+        tag=req.params.get("tag", ""),
+        collection=req.params.get("collection", ""),
+    )
     handler.json_response({"items": [paper.to_dict() for paper in papers]})
 
 
