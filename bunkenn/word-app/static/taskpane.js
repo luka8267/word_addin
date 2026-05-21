@@ -1197,11 +1197,8 @@
   }
 
   function applyCitationFormatting(control, referenceLabel, style) {
-    if (shouldSuperscriptStyle(style)) {
-      control.insertHtml(`<sup>${escapeHtml(referenceLabel)}</sup>`, Word.InsertLocation.replace);
-      return;
-    }
-    control.insertText(referenceLabel, Word.InsertLocation.replace);
+    const insertedRange = control.insertText(referenceLabel, Word.InsertLocation.replace);
+    insertedRange.font.superscript = shouldSuperscriptStyle(style);
   }
 
   async function refreshCitationsForStyle(documentState) {
