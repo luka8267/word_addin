@@ -290,11 +290,19 @@
         <strong class="paper-title"></strong>
         <span class="paper-meta"></span>
         <span class="paper-meta"></span>
+        <span class="paper-pills"></span>
       `;
-      const nodes = button.querySelectorAll("strong, span");
+      const nodes = button.querySelectorAll(".paper-title, .paper-meta, .paper-pills");
       nodes[0].textContent = paper.title;
       nodes[1].textContent = paper.authors;
       nodes[2].textContent = formatPaperMetadataLine(paper);
+      nodes[3].appendChild(createPill(paper.doi ? "DOI" : "DOIなし", paper.doi ? "accent" : "danger"));
+      if (paper.year) {
+        nodes[3].appendChild(createPill(String(paper.year), "normal"));
+      }
+      if (paper.journal) {
+        nodes[3].appendChild(createPill("雑誌", "normal"));
+      }
       button.addEventListener("click", function () {
         state.selectedPaper = paper;
         selectionMessage.textContent = selectedPaperMessage(paper);
@@ -312,6 +320,13 @@
       });
       container.appendChild(button);
     }
+  }
+
+  function createPill(label, kind) {
+    const pill = document.createElement("span");
+    pill.className = `pill ${kind || ""}`.trim();
+    pill.textContent = label;
+    return pill;
   }
 
   function formatPaperMetadataLine(paper) {
