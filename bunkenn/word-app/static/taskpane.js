@@ -5,7 +5,15 @@
   const CITATION_TAG = "BUNKEN_CITATION";
   const DOCUMENT_ID_PREFIX = "bunken_word_";
   const DEFAULT_STYLE = "vancouver";
-  const SUPPORTED_STYLES = new Set(["vancouver", "apa", "acs", "nature", "ieee"]);
+  const SUPPORTED_STYLES = new Set([
+    "vancouver",
+    "apa",
+    "acs",
+    "nature",
+    "ieee",
+    "elsevier-harvard",
+    "chicago-author-date",
+  ]);
   const NUMERIC_STYLES = new Set(["vancouver", "acs", "nature", "ieee"]);
   const AUTH_STORAGE_KEY = "bunkenWordAuthV3";
   const LEGACY_AUTH_STORAGE_KEYS = ["bunkenWordAuth", "bunkenWordAuthV2"];

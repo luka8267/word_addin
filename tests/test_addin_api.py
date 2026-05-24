@@ -229,8 +229,8 @@ class AddinCitationFormatTests(unittest.TestCase):
             pages="45-67",
         )
 
-        self.assertIn("Journal 12(3), 45-67", build_bibliography_entry(paper, "apa"))
-        self.assertIn("Journal, 12(3), 45-67", build_bibliography_entry(paper, "vancouver"))
+        self.assertIn("Journal, 12(3), 45", build_bibliography_entry(paper, "apa"))
+        self.assertIn("Journal. 2024;12(3):45", build_bibliography_entry(paper, "vancouver"))
 
 
 if __name__ == "__main__":
