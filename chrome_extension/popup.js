@@ -4,6 +4,20 @@ const DOI_RE = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
 
 const $ = (id) => document.getElementById(id);
 let currentPayload = null;
+let lastPdfCandidate = "";
+
+function buildDerivedPdfCandidates(value, url, doi) {
+  const candidates = Array.isArray(value.pdfCandidates) ? [...value.pdfCandidates] : [];
+  const parsedUrl = (() => {
+    try { return new URL(url); } catch (_error) { return null; }
+  })();
+  const normalizedDoi = normalizeDoi(doi || value.doi || url);
+  if (parsedUrl?.hostname === "pubs.acs.org" && normalizedDoi) {
+    candidates.unshift(`https://pubs.acs.org/doi/pdf/${normalizedDoi}`);
+    candidates.unshift(`https://pubs.acs.org/doi/pdfplus/${normalizedDoi}`);
+  }
+  return unique(candidates);
+}
 
 function normalizePayload(payload, tab) {
   const value = payload && typeof payload === "object" ? payload : {};
@@ -17,7 +31,7 @@ function normalizePayload(payload, tab) {
     year: String(value.year || "").trim(),
     doi: normalizeDoi(value.doi || ""),
     abstract: String(value.abstract || "").trim(),
-    pdfCandidates: Array.isArray(value.pdfCandidates) ? value.pdfCandidates : [],
+    pdfCandidates: buildDerivedPdfCandidates(value, url, value.doi),
     metadata: value.metadata && typeof value.metadata === "object" ? value.metadata : {},
   };
 }
@@ -88,9 +102,15 @@ function extractFromPage() {
   const jsonLdAuthors = asArray(scholarly.author || scholarly.creator).map(textFromJsonLd);
   const links = [...document.querySelectorAll("a[href], link[href]")]
     .map((node) => node.href || node.getAttribute("href") || "")
-    .filter((href) => /\.pdf(?:$|[?#])|pdf/i.test(href));
+    .filter((href) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(href));
   const citationPdf = byName(["citation_pdf_url"]);
   const textDoi = (document.body?.innerText || location.href).match(DOI_RE)?.[0] || "";
+  const pageDoi = normalizeDoi(first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi"]) || jsonLdDoi || textDoi || location.href);
+  const derivedPdfCandidates = [];
+  if (location.hostname === "pubs.acs.org" && pageDoi) {
+    derivedPdfCandidates.push(`https://pubs.acs.org/doi/pdfplus/${pageDoi}`);
+    derivedPdfCandidates.push(`https://pubs.acs.org/doi/pdf/${pageDoi}`);
+  }
   const title = first(["citation_title", "dc.title", "dcterms.title", "og:title", "twitter:title"])
     || scholarly.headline
     || scholarly.name
@@ -108,12 +128,12 @@ function extractFromPage() {
     year: first(["citation_publication_date", "citation_online_date", "dc.date", "dcterms.issued", "article:published_time"])
       || scholarly.datePublished
       || scholarly.dateCreated,
-    doi: normalizeDoi(first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi"]) || jsonLdDoi || textDoi),
+    doi: pageDoi,
     abstract: first(["citation_abstract", "dc.description", "dcterms.abstract", "description", "og:description"])
       || scholarly.abstract
       || scholarly.description
       || "",
-    pdfCandidates: unique([...citationPdf, ...links]),
+    pdfCandidates: unique([...derivedPdfCandidates, ...citationPdf, ...links]),
     metadata: {
       title,
       citation_authors: byName(["citation_author"]),
@@ -145,16 +165,20 @@ function render(payload) {
   $("title").textContent = currentPayload.title || "Title not found";
   $("meta").textContent = [currentPayload.authors.join(", "), currentPayload.journal, currentPayload.year].filter(Boolean).join(" / ");
   $("doi").textContent = currentPayload.doi ? `DOI: ${currentPayload.doi}` : "DOI: not found";
-  $("pdf").textContent = `PDF candidates: ${currentPayload.pdfCandidates.length}`;
+  lastPdfCandidate = currentPayload.pdfCandidates[0] || "";
+  $("openPdf").disabled = !lastPdfCandidate;
+  $("pdf").textContent = lastPdfCandidate
+    ? `PDF candidates: ${currentPayload.pdfCandidates.length} / ${lastPdfCandidate}`
+    : `PDF candidates: ${currentPayload.pdfCandidates.length}`;
 }
 
 async function loadSettings() {
-  const values = await chrome.storage.sync.get(["apiBase", "appUrl", "accessToken", "email"]);
+  const values = await chrome.storage.sync.get(["apiBase", "appUrl", "accessToken", "refreshToken", "email"]);
   $("apiBase").value = values.apiBase || DEFAULT_API_BASE;
   $("appUrl").value = values.appUrl || DEFAULT_APP_URL;
   $("accessToken").value = values.accessToken || "";
   $("email").value = values.email || "";
-  $("status").textContent = values.accessToken ? "Signed in" : "Not connected";
+  $("status").textContent = values.accessToken || values.refreshToken ? "Signed in" : "Not connected";
 }
 
 async function saveSettings() {
@@ -164,6 +188,46 @@ async function saveSettings() {
     accessToken: $("accessToken").value.trim(),
     email: $("email").value.trim(),
   });
+}
+
+async function refreshSession() {
+  const values = await chrome.storage.sync.get(["apiBase", "refreshToken"]);
+  const apiBase = (values.apiBase || DEFAULT_API_BASE).trim().replace(/\/$/, "");
+  const refreshToken = values.refreshToken || "";
+  if (!refreshToken) return "";
+  const response = await fetch(`${apiBase}/api/addin/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || !result.accessToken) return "";
+  $("accessToken").value = result.accessToken;
+  await chrome.storage.sync.set({
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken || refreshToken,
+    email: result.email || $("email").value.trim(),
+  });
+  $("status").textContent = "Signed in";
+  return result.accessToken;
+}
+
+async function getAccessToken() {
+  let token = $("accessToken").value.trim();
+  if (token) return token;
+  token = await refreshSession();
+  return token;
+}
+
+async function openPdfCandidate() {
+  if (!lastPdfCandidate && currentPayload?.pdfCandidates?.length) {
+    lastPdfCandidate = currentPayload.pdfCandidates[0];
+  }
+  if (!lastPdfCandidate) {
+    $("message").textContent = "No PDF candidate found on this page.";
+    return;
+  }
+  await chrome.tabs.create({ url: lastPdfCandidate });
 }
 
 async function openApp() {
@@ -195,6 +259,7 @@ async function login() {
   $("accessToken").value = result.accessToken;
   $("password").value = "";
   await saveSettings();
+  await chrome.storage.sync.set({ refreshToken: result.refreshToken || "" });
   $("status").textContent = "Signed in";
   $("message").textContent = "Signed in. You can save this paper.";
 }
@@ -211,7 +276,7 @@ async function extract() {
   return true;
 }
 
-async function save() {
+async function save(retried = false) {
   await saveSettings();
   if (!currentPayload) {
     const extracted = await extract();
@@ -222,9 +287,9 @@ async function save() {
     return;
   }
   const apiBase = $("apiBase").value.trim().replace(/\/$/, "");
-  const token = $("accessToken").value.trim();
+  const token = await getAccessToken();
   if (!apiBase || !token) {
-    $("message").textContent = "Enter API URL and access token, or sign in first.";
+    $("message").textContent = "Sign in once. After that, bunken will keep you signed in automatically.";
     return;
   }
   $("message").textContent = "Saving to bunken...";
@@ -236,7 +301,10 @@ async function save() {
     },
     body: JSON.stringify(currentPayload),
   });
-  const result = await response.json().catch(() => ({}));
+  let result = await response.json().catch(() => ({}));
+  if (response.status === 401 && !retried && await refreshSession()) {
+    return save(true);
+  }
   if (!response.ok) {
     $("message").textContent = `Save failed: ${result.error || response.status}`;
     return;
@@ -244,6 +312,8 @@ async function save() {
   const lines = [result.duplicate ? "Already exists in bunken." : "Saved to bunken."];
   if (result.pdf?.saved) lines.push(`PDF saved: ${result.pdf.storagePath}`);
   else if (result.pdfCandidates?.length) {
+    lastPdfCandidate = result.pdfCandidates[0];
+    $("openPdf").disabled = false;
     lines.push(`PDF candidate: ${result.pdfCandidates[0]}`);
     lines.push("Open bunken app and use the paper detail pane to upload the PDF manually if needed.");
   }
@@ -253,6 +323,7 @@ async function save() {
 $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
 $("login").addEventListener("click", () => login().catch((error) => { $("message").textContent = String(error); }));
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
+$("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
 $("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
 
 loadSettings().then(extract).catch((error) => { $("message").textContent = String(error); });

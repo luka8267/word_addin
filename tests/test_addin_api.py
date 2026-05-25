@@ -80,6 +80,21 @@ class SupabaseStub:
 
 
 class AddinDataAccessTests(unittest.TestCase):
+    def test_refresh_access_token_uses_supabase_refresh_grant(self):
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            return_value={"access_token": "next-token", "refresh_token": "next-refresh"},
+        ) as request:
+            result = data_access.refresh_access_token("refresh-token")
+
+        self.assertEqual(result["access_token"], "next-token")
+        request.assert_called_once()
+        _, kwargs = request.call_args
+        self.assertEqual(kwargs["method"], "POST")
+        self.assertEqual(kwargs["query_params"], {"grant_type": "refresh_token"})
+        self.assertEqual(kwargs["json_body"], {"refresh_token": "refresh-token"})
+
     def test_fetch_papers_by_ids_preserves_requested_order(self):
         stub = SupabaseStub()
         with patch.object(data_access, "use_supabase", return_value=True), patch.object(

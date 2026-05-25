@@ -86,8 +86,12 @@ summary {
   background: #24435f;
   color: #fff;
 }
-#openApp {
+#openApp, #openPdf {
   background: #ffffff;
   color: #24435f;
   border: 1px solid #cfd8e3;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }

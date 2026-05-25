@@ -491,6 +491,21 @@ def login_with_password(email: str, password: str) -> dict:
     )
 
 
+def refresh_access_token(refresh_token: str) -> dict:
+    normalized_token = clean_extension_text(refresh_token, 4000)
+    if not use_supabase():
+        raise RuntimeError("SUPABASE_URL and SUPABASE_PUBLIC_KEY are required for token refresh")
+    if not normalized_token:
+        raise PermissionError("refreshToken is required")
+    return request_supabase(
+        "/auth/v1/token",
+        method="POST",
+        query_params={"grant_type": "refresh_token"},
+        json_body={"refresh_token": normalized_token},
+        api_key=SUPABASE_PUBLIC_KEY,
+    )
+
+
 def fetch_user_from_token(access_token: str) -> dict:
     if not access_token:
         raise RuntimeError("Missing access token")

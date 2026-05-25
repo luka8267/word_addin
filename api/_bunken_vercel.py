@@ -17,6 +17,7 @@ from shared.data_access import (
     fetch_papers_by_ids,
     list_document_citations,
     login_with_password,
+    refresh_access_token,
     resolve_request_context,
     save_extension_paper,
     search_user_papers,
@@ -96,6 +97,25 @@ def handle_auth_login(handler):
         {
             "accessToken": access_token,
             "refreshToken": refresh_token,
+            "userId": context["userId"],
+            "email": context.get("email", ""),
+            "username": context.get("username", ""),
+        }
+    )
+
+
+def handle_auth_refresh(handler):
+    req = handler.request_parts()
+    payload = req.get_json()
+    refresh_token = payload.get("refreshToken") or payload.get("refresh_token") or ""
+    auth_response = refresh_access_token(refresh_token)
+    access_token = auth_response.get("access_token") or ""
+    next_refresh_token = auth_response.get("refresh_token") or refresh_token
+    context = build_context_from_token(access_token)
+    handler.json_response(
+        {
+            "accessToken": access_token,
+            "refreshToken": next_refresh_token,
             "userId": context["userId"],
             "email": context.get("email", ""),
             "username": context.get("username", ""),
