@@ -1,11 +1,14 @@
 import base64
 import json
+import ipaddress
 import os
+import re
 import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.error import HTTPError
-from urllib.parse import urlencode, urlparse
+from urllib.parse import quote, unquote, urlencode, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 from .bunken_models import PaperSummary
@@ -30,6 +33,11 @@ DEBUG_ENDPOINTS_ENABLED = os.getenv("BUNKEN_ENABLE_DEBUG_ENDPOINTS", "").lower()
 SAMPLE_DATA_PATH = Path(__file__).resolve().with_name("sample_papers.json")
 PAPER_SELECT_COLUMNS = "id,title,authors,journal,year,doi,user_id,volume,issue,pages,publisher,item_type"
 LEGACY_PAPER_SELECT_COLUMNS = "id,title,authors,journal,year,doi,user_id"
+EXTENSION_PAPER_SELECT_COLUMNS = "id,item_id,title,authors,journal,year,doi,user_id,volume,issue,pages,publisher,item_type"
+PDF_STORAGE_BUCKET = os.getenv("BUNKEN_PDF_STORAGE_BUCKET", "paper-pdfs")
+MAX_EXTENSION_PDF_BYTES = int(os.getenv("BUNKEN_EXTENSION_MAX_PDF_BYTES", str(25 * 1024 * 1024)))
+DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+
 
 
 def decode_jwt_payload_unverified(token: str) -> dict:
@@ -45,6 +53,163 @@ def decode_jwt_payload_unverified(token: str) -> dict:
     except Exception:
         return {}
 
+
+
+def normalize_doi(value: str | None) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    text = unquote(text)
+    text = re.sub(r"^doi:\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", text, flags=re.IGNORECASE).strip()
+    text = text.strip(". ,;\t\r\n")
+    match = DOI_PATTERN.search(text)
+    return match.group(0).rstrip(". ,;") if match else text
+
+
+def normalize_title_key(value: str | None) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip()).lower()
+
+
+def parse_year(value) -> int | None:
+    if value is None:
+        return None
+    match = re.search(r"(?:19|20)\d{2}", str(value))
+    return int(match.group(0)) if match else None
+
+
+def clean_extension_text(value: str | None, max_length: int = 2000) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())[:max_length]
+
+
+def normalize_author_list(value) -> list[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        candidates = value
+    else:
+        candidates = re.split(r"\s*(?:;|\band\b|\|)\s*", str(value))
+    names: list[str] = []
+    seen: set[str] = set()
+    for item in candidates:
+        name = clean_extension_text(item, 300).strip(" ,;")
+        if not name:
+            continue
+        key = name.lower()
+        if key not in seen:
+            names.append(name)
+            seen.add(key)
+    return names[:50]
+
+
+def extension_source_from_payload(payload: dict) -> dict:
+    metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    source_url = clean_extension_text(payload.get("url") or metadata.get("url"), 2000)
+    pdf_candidates = []
+    for value in payload.get("pdfCandidates") or metadata.get("pdfCandidates") or []:
+        candidate = clean_extension_text(value, 2000)
+        if candidate and candidate not in pdf_candidates:
+            pdf_candidates.append(candidate)
+    return {
+        "title": clean_extension_text(payload.get("title") or metadata.get("title") or metadata.get("citation_title"), 1000),
+        "authors": normalize_author_list(payload.get("authors") or metadata.get("authors") or metadata.get("citation_authors")),
+        "journal": clean_extension_text(payload.get("journal") or metadata.get("journal") or metadata.get("citation_journal_title"), 1000),
+        "year": parse_year(payload.get("year") or metadata.get("year") or metadata.get("citation_publication_date")),
+        "doi": normalize_doi(payload.get("doi") or metadata.get("doi") or metadata.get("citation_doi")),
+        "url": source_url,
+        "abstract": clean_extension_text(payload.get("abstract") or metadata.get("abstract") or metadata.get("description"), 10000),
+        "pdfCandidates": pdf_candidates,
+        "rawMetadata": metadata,
+    }
+
+
+def relative_candidate_url(base_url: str, candidate_url: str) -> str:
+    candidate = clean_extension_text(candidate_url, 2000)
+    if not candidate:
+        return ""
+    return urljoin(base_url or "", candidate)
+
+
+def is_public_http_url(value: str) -> bool:
+    parsed = urlparse(value or "")
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    hostname = (parsed.hostname or "").lower()
+    if not hostname or hostname == "localhost":
+        return False
+    try:
+        address = ipaddress.ip_address(hostname)
+        if address.is_private or address.is_loopback or address.is_link_local or address.is_multicast:
+            return False
+    except ValueError:
+        pass
+    return True
+
+
+def fetch_pdf_candidate(url: str) -> tuple[bytes | None, str]:
+    if not is_public_http_url(url):
+        return None, "unsupported_url"
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/pdf,*/*;q=0.8",
+            "User-Agent": "bunken-extension/1.0",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=20) as response:
+            content_type = (response.headers.get("content-type") or "").split(";", maxsplit=1)[0].strip().lower()
+            content_length = int(response.headers.get("content-length") or "0")
+            if content_length and content_length > MAX_EXTENSION_PDF_BYTES:
+                return None, "too_large"
+            chunks = []
+            total = 0
+            while True:
+                chunk = response.read(1024 * 256)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > MAX_EXTENSION_PDF_BYTES:
+                    return None, "too_large"
+                chunks.append(chunk)
+            data = b"".join(chunks)
+            if not data.startswith(b"%PDF") and content_type != "application/pdf":
+                return None, "not_pdf"
+            return data, "ok"
+    except Exception as error:
+        return None, f"fetch_failed: {error}"
+
+
+def storage_upload(path: str, body: bytes, content_type: str, context: dict[str, str]) -> None:
+    if not SUPABASE_URL:
+        raise RuntimeError("SUPABASE_URL is required for Storage upload")
+    auth = supabase_request_auth(context)
+    api_key = auth["api_key"] or SUPABASE_PUBLIC_KEY or SUPABASE_ADMIN_KEY
+    bearer_token = auth["bearer_token"] or (SUPABASE_ADMIN_KEY if SUPABASE_ADMIN_KEY.startswith("eyJ") else "")
+    url = f"{SUPABASE_URL}/storage/v1/object/{PDF_STORAGE_BUCKET}/{quote(path, safe='/')}"
+    headers = {
+        "apikey": api_key,
+        "Authorization": f"Bearer {bearer_token or api_key}",
+        "Content-Type": content_type,
+        "x-upsert": "false",
+    }
+    request = Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urlopen(request, timeout=30) as response:
+            response.read()
+    except HTTPError as error:
+        error_body = error.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"Storage upload failed: {error.code} {error_body}") from error
+
+
+def make_extension_pdf_storage_path(user_id: str, item_id: str, source_url: str) -> str:
+    parsed = urlparse(source_url or "")
+    filename = Path(unquote(parsed.path or "paper.pdf")).name or "paper.pdf"
+    filename = re.sub(r"[^A-Za-z0-9._-]+", "_", filename).strip("._") or "paper.pdf"
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{filename}.pdf"
+    return f"{user_id}/pdfs/{int(time.time())}-{item_id[:8]}-{filename[:120]}"
 
 def extract_supabase_ref_from_url(url: str) -> str:
     hostname = urlparse(url or "").hostname or ""
@@ -516,6 +681,164 @@ def fetch_papers_by_ids(context: dict[str, str], paper_ids: list[str]) -> list[P
     by_id = {paper.id: paper for paper in load_sample_papers()}
     return [by_id[paper_id] for paper_id in paper_ids if paper_id in by_id]
 
+
+
+def find_existing_extension_item(context: dict[str, str], source: dict) -> dict | None:
+    if not use_supabase():
+        return None
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    doi = source.get("doi") or ""
+    if doi:
+        rows = request_supabase(
+            "/rest/v1/paper_items_view",
+            query_params={
+                "select": EXTENSION_PAPER_SELECT_COLUMNS,
+                "user_id": f"eq.{user_id}",
+                "doi": f"ilike.{doi}",
+                "limit": "1",
+            },
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
+        )
+        if rows:
+            return rows[0]
+
+    title_key = normalize_title_key(source.get("title"))
+    if not title_key:
+        return None
+    params = {
+        "select": EXTENSION_PAPER_SELECT_COLUMNS,
+        "user_id": f"eq.{user_id}",
+        "title": f"ilike.{source.get('title')}",
+        "limit": "5",
+    }
+    if source.get("year"):
+        params["year"] = f"eq.{source['year']}"
+    rows = request_supabase(
+        "/rest/v1/paper_items_view",
+        query_params=params,
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+    )
+    for row in rows or []:
+        if normalize_title_key(row.get("title")) == title_key:
+            return row
+    return None
+
+
+def create_extension_item(context: dict[str, str], source: dict) -> dict:
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    payload = {
+        "user_id": user_id,
+        "item_type": "journalArticle",
+        "title": source.get("title") or "Untitled paper",
+        "publication_title": source.get("journal") or "",
+        "year": source.get("year"),
+        "doi": source.get("doi") or None,
+        "url": source.get("url") or None,
+        "abstract_note": source.get("abstract") or None,
+        "extra": {
+            "created_by": "chrome_extension",
+            "source_url": source.get("url") or "",
+            "pdf_candidates": source.get("pdfCandidates") or [],
+        },
+    }
+    rows = request_supabase(
+        "/rest/v1/items",
+        method="POST",
+        json_body=payload,
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+        prefer="return=representation",
+    )
+    if not isinstance(rows, list) or not rows:
+        raise RuntimeError("Item insert did not return a row")
+    item = rows[0]
+    creator_rows = [
+        {
+            "item_id": item["id"],
+            "creator_type": "author",
+            "literal_name": author,
+            "position": index,
+        }
+        for index, author in enumerate(source.get("authors") or [], start=1)
+    ]
+    if creator_rows:
+        request_supabase(
+            "/rest/v1/creators",
+            method="POST",
+            json_body=creator_rows,
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
+            prefer="return=minimal",
+        )
+    return item
+
+
+def create_extension_attachment(context: dict[str, str], item_id: str, storage_path: str, pdf_url: str) -> None:
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    request_supabase(
+        "/rest/v1/attachments",
+        method="POST",
+        json_body={
+            "item_id": item_id,
+            "user_id": user_id,
+            "kind": "pdf",
+            "storage_path": storage_path,
+            "filename": Path(urlparse(pdf_url).path).name or "paper.pdf",
+            "content_type": "application/pdf",
+            "title": "PDF from Chrome extension",
+        },
+        bearer_token=auth["bearer_token"],
+        api_key=auth["api_key"],
+        prefer="return=minimal",
+    )
+
+
+def save_extension_paper(context: dict[str, str], payload: dict) -> dict:
+    if not use_supabase():
+        raise RuntimeError("Supabase is required for Chrome extension saves")
+    if not context.get("userId") or not context.get("access_token"):
+        raise PermissionError("Authentication required")
+
+    source = extension_source_from_payload(payload)
+    if not source.get("title") and not source.get("doi"):
+        raise ValueError("title or DOI is required")
+
+    candidates = [relative_candidate_url(source.get("url", ""), value) for value in source.get("pdfCandidates") or []]
+    candidates = [value for index, value in enumerate(candidates) if value and value not in candidates[:index]]
+    source["pdfCandidates"] = candidates
+
+    existing = find_existing_extension_item(context, source)
+    item = existing or create_extension_item(context, source)
+    item_id = str(item.get("item_id") or item.get("id") or "")
+
+    pdf_result = {"saved": False, "storagePath": "", "sourceUrl": "", "reason": "no_candidate"}
+    if item_id and not existing:
+        for candidate in candidates[:5]:
+            pdf_bytes, reason = fetch_pdf_candidate(candidate)
+            if not pdf_bytes:
+                pdf_result = {"saved": False, "storagePath": "", "sourceUrl": candidate, "reason": reason}
+                continue
+            storage_path = make_extension_pdf_storage_path(context["userId"], item_id, candidate)
+            storage_upload(storage_path, pdf_bytes, "application/pdf", context)
+            create_extension_attachment(context, item_id, storage_path, candidate)
+            pdf_result = {"saved": True, "storagePath": storage_path, "sourceUrl": candidate, "reason": "ok"}
+            break
+
+    return {
+        "saved": not bool(existing),
+        "duplicate": bool(existing),
+        "itemId": item_id,
+        "paperId": str(item.get("id") or ""),
+        "title": item.get("title") or source.get("title") or "",
+        "doi": item.get("doi") or source.get("doi") or "",
+        "pdfCandidates": candidates,
+        "pdf": pdf_result,
+    }
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()

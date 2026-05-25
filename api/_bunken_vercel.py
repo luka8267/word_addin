@@ -18,6 +18,7 @@ from shared.data_access import (
     list_document_citations,
     login_with_password,
     resolve_request_context,
+    save_extension_paper,
     search_user_papers,
     sync_document_citations,
 )
@@ -68,7 +69,7 @@ class BunkenHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.send_header(
             "Access-Control-Allow-Headers",
-            "Content-Type, X-Bunken-Access-Token, X-Bunken-User-Id, X-Bunken-Username, X-Bunken-Email",
+            "Authorization, Content-Type, X-Bunken-Access-Token, X-Bunken-User-Id, X-Bunken-Username, X-Bunken-Email",
         )
         self.end_headers()
 
@@ -189,4 +190,10 @@ def handle_documents_citations(handler):
 def handle_documents_sync(handler):
     req = handler.request_parts()
     result = sync_document_citations(resolve_request_context(req), req.get_json())
+    handler.json_response(result)
+
+
+def handle_extension_save(handler):
+    req = handler.request_parts()
+    result = save_extension_paper(resolve_request_context(req), req.get_json())
     handler.json_response(result)

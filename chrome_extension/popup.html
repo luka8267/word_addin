@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>bunken Web Importer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>bunken</h1>
+      <span id="status">Not connected</span>
+    </header>
+
+    <label>API URL
+      <input id="apiBase" type="url" placeholder="https://word-addin-sooty.vercel.app">
+    </label>
+    <div class="login-grid">
+      <label>Email
+        <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      </label>
+      <label>Password
+        <input id="password" type="password" autocomplete="current-password" placeholder="Supabase password">
+      </label>
+    </div>
+    <button id="login" type="button">Sign in</button>
+
+    <details>
+      <summary>Use access token directly</summary>
+      <label>Supabase access token
+        <textarea id="accessToken" rows="3" placeholder="Supabase access token"></textarea>
+      </label>
+    </details>
+
+    <section id="preview" hidden>
+      <strong id="title"></strong>
+      <p id="meta"></p>
+      <p id="doi"></p>
+      <p id="pdf"></p>
+    </section>
+
+    <div class="actions">
+      <button id="extract">Refresh</button>
+      <button id="save">Save to bunken</button>
+    </div>
+
+    <pre id="message" aria-live="polite"></pre>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

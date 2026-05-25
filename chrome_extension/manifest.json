@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "bunken Web Importer",
+  "version": "0.1.0",
+  "description": "Save papers from the current browser tab to bunken.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>", "https://*.vercel.app/*", "http://localhost:*/*"],
+  "action": {
+    "default_title": "Save to bunken",
+    "default_popup": "popup.html"
+  }
+}

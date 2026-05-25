@@ -233,5 +233,102 @@ class AddinCitationFormatTests(unittest.TestCase):
         self.assertIn("Journal. 2024;12(3):45", build_bibliography_entry(paper, "vancouver"))
 
 
+class ExtensionSaveTests(unittest.TestCase):
+    def test_extension_save_creates_item_and_creator_rows(self):
+        calls = []
+
+        def stub_request(path, **kwargs):
+            calls.append((path, kwargs))
+            if path == "/rest/v1/paper_items_view":
+                return []
+            if path == "/rest/v1/items" and kwargs.get("method") == "POST":
+                body = kwargs["json_body"]
+                self.assertEqual(body["user_id"], "user-1")
+                self.assertEqual(body["title"], "A Useful Paper")
+                self.assertEqual(body["doi"], "10.1000/example")
+                self.assertEqual(body["publication_title"], "Journal A")
+                return [{"id": "item-1", **body}]
+            if path == "/rest/v1/creators" and kwargs.get("method") == "POST":
+                self.assertEqual(
+                    kwargs["json_body"],
+                    [
+                        {
+                            "item_id": "item-1",
+                            "creator_type": "author",
+                            "literal_name": "Alpha",
+                            "position": 1,
+                        },
+                        {
+                            "item_id": "item-1",
+                            "creator_type": "author",
+                            "literal_name": "Beta",
+                            "position": 2,
+                        },
+                    ],
+                )
+                return {}
+            raise AssertionError(f"Unexpected request: {path} {kwargs}")
+
+        payload = {
+            "url": "https://example.org/article",
+            "title": "A Useful Paper",
+            "authors": ["Alpha", "Beta"],
+            "journal": "Journal A",
+            "year": "2026-01-02",
+            "doi": "https://doi.org/10.1000/example",
+            "pdfCandidates": ["/paper.pdf"],
+        }
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            side_effect=stub_request,
+        ), patch.object(data_access, "fetch_pdf_candidate", return_value=(None, "not_pdf")):
+            result = data_access.save_extension_paper(AUTH_CONTEXT, payload)
+
+        self.assertTrue(result["saved"])
+        self.assertFalse(result["duplicate"])
+        self.assertEqual(result["itemId"], "item-1")
+        self.assertEqual(result["doi"], "10.1000/example")
+        self.assertEqual(result["pdfCandidates"], ["https://example.org/paper.pdf"])
+        self.assertEqual(result["pdf"]["reason"], "not_pdf")
+        self.assertIn("/rest/v1/items", [path for path, _ in calls])
+
+    def test_extension_save_returns_existing_item_for_duplicate_doi(self):
+        calls = []
+
+        def stub_request(path, **kwargs):
+            calls.append((path, kwargs))
+            if path == "/rest/v1/paper_items_view":
+                return [
+                    {
+                        "id": "paper-1",
+                        "item_id": "item-1",
+                        "title": "Existing Paper",
+                        "doi": "10.1000/example",
+                    }
+                ]
+            raise AssertionError(f"Unexpected request: {path} {kwargs}")
+
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            side_effect=stub_request,
+        ):
+            result = data_access.save_extension_paper(
+                AUTH_CONTEXT,
+                {"title": "Existing Paper", "doi": "doi:10.1000/example"},
+            )
+
+        self.assertFalse(result["saved"])
+        self.assertTrue(result["duplicate"])
+        self.assertEqual(result["itemId"], "item-1")
+        self.assertNotIn("/rest/v1/items", [path for path, _ in calls])
+
+    def test_extension_save_requires_authenticated_context(self):
+        with patch.object(data_access, "use_supabase", return_value=True):
+            with self.assertRaises(PermissionError):
+                data_access.save_extension_paper({"userId": "user-1"}, {"title": "No Auth"})
+
+
 if __name__ == "__main__":
     unittest.main()
