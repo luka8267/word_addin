@@ -86,3 +86,8 @@ summary {
   background: #24435f;
   color: #fff;
 }
+#openApp {
+  background: #ffffff;
+  color: #24435f;
+  border: 1px solid #cfd8e3;
+}

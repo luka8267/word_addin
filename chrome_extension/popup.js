@@ -1,4 +1,5 @@
 ﻿const DEFAULT_API_BASE = "https://word-addin-sooty.vercel.app";
+const DEFAULT_APP_URL = "https://bunken-h56cct98ayvusf55qxwewt.streamlit.app";
 const DOI_RE = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
 
 const $ = (id) => document.getElementById(id);
@@ -70,8 +71,9 @@ function render(payload) {
 }
 
 async function loadSettings() {
-  const values = await chrome.storage.sync.get(["apiBase", "accessToken", "email"]);
+  const values = await chrome.storage.sync.get(["apiBase", "appUrl", "accessToken", "email"]);
   $("apiBase").value = values.apiBase || DEFAULT_API_BASE;
+  $("appUrl").value = values.appUrl || DEFAULT_APP_URL;
   $("accessToken").value = values.accessToken || "";
   $("email").value = values.email || "";
   $("status").textContent = values.accessToken ? "Signed in" : "Not connected";
@@ -80,9 +82,16 @@ async function loadSettings() {
 async function saveSettings() {
   await chrome.storage.sync.set({
     apiBase: $("apiBase").value.trim().replace(/\/$/, ""),
+    appUrl: $("appUrl").value.trim().replace(/\/$/, ""),
     accessToken: $("accessToken").value.trim(),
     email: $("email").value.trim(),
   });
+}
+
+async function openApp() {
+  await saveSettings();
+  const appUrl = $("appUrl").value.trim() || DEFAULT_APP_URL;
+  await chrome.tabs.create({ url: appUrl });
 }
 
 async function login() {
@@ -144,13 +153,17 @@ async function save() {
   }
   const lines = [result.duplicate ? "Already exists in bunken." : "Saved to bunken."];
   if (result.pdf?.saved) lines.push(`PDF saved: ${result.pdf.storagePath}`);
-  else if (result.pdfCandidates?.length) lines.push(`PDF candidate: ${result.pdfCandidates[0]}`);
+  else if (result.pdfCandidates?.length) {
+    lines.push(`PDF candidate: ${result.pdfCandidates[0]}`);
+    lines.push("Open bunken app and use the paper detail pane to upload the PDF manually if needed.");
+  }
   $("message").textContent = lines.join("\n");
 }
 
 $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
 $("login").addEventListener("click", () => login().catch((error) => { $("message").textContent = String(error); }));
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
+$("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
 
 loadSettings().then(extract).catch((error) => { $("message").textContent = String(error); });
 
