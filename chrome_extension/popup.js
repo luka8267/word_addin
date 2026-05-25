@@ -35,6 +35,38 @@ function unique(values) {
   return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
 }
 
+function asArray(value) {
+  return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+function textFromJsonLd(value) {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") return value.name || value.headline || value.title || value["@id"] || value.url || "";
+  return String(value || "");
+}
+
+function extractJsonLdObjects() {
+  const roots = [];
+  for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const parsed = JSON.parse(script.textContent || "{}");
+      roots.push(...asArray(parsed));
+    } catch (_error) {
+      // Ignore malformed publisher JSON-LD blocks.
+    }
+  }
+  const flattened = [];
+  const visit = (node) => {
+    if (!node || typeof node !== "object") return;
+    flattened.push(node);
+    for (const child of asArray(node["@graph"])) visit(child);
+    for (const child of asArray(node.mainEntity)) visit(child);
+  };
+  roots.forEach(visit);
+  return flattened;
+}
+
 function extractFromPage() {
   const metas = [...document.querySelectorAll("meta")];
   const byName = (names) => {
@@ -45,21 +77,42 @@ function extractFromPage() {
       .filter(Boolean);
   };
   const first = (names) => byName(names)[0] || "";
+  const jsonLdObjects = extractJsonLdObjects();
+  const scholarly = jsonLdObjects.find((item) => {
+    const type = asArray(item["@type"]).join(" ").toLowerCase();
+    return /scholarlyarticle|article|creativework/.test(type) || item.doi || item.identifier;
+  }) || {};
+  const identifiers = asArray(scholarly.identifier).map(textFromJsonLd).join(" ");
+  const jsonLdDoi = scholarly.doi || identifiers.match(DOI_RE)?.[0] || "";
+  const jsonLdJournal = textFromJsonLd(scholarly.isPartOf) || textFromJsonLd(scholarly.publisher);
+  const jsonLdAuthors = asArray(scholarly.author || scholarly.creator).map(textFromJsonLd);
   const links = [...document.querySelectorAll("a[href], link[href]")]
     .map((node) => node.href || node.getAttribute("href") || "")
     .filter((href) => /\.pdf(?:$|[?#])|pdf/i.test(href));
   const citationPdf = byName(["citation_pdf_url"]);
   const textDoi = (document.body?.innerText || location.href).match(DOI_RE)?.[0] || "";
-  const title = first(["citation_title", "dc.title", "dcterms.title", "og:title"]) || document.title;
+  const title = first(["citation_title", "dc.title", "dcterms.title", "og:title", "twitter:title"])
+    || scholarly.headline
+    || scholarly.name
+    || document.title;
 
   return {
     url: location.href,
-    title: title.trim(),
-    authors: unique(byName(["citation_author", "dc.creator", "dcterms.creator"])),
-    journal: first(["citation_journal_title", "prism.publicationName", "dc.source", "og:site_name"]),
-    year: first(["citation_publication_date", "citation_online_date", "dc.date", "dcterms.issued"]),
-    doi: normalizeDoi(first(["citation_doi", "dc.identifier", "dc.identifier.doi"]) || textDoi),
-    abstract: first(["citation_abstract", "dc.description", "description", "og:description"]),
+    title: String(title || "").trim(),
+    authors: unique([
+      ...byName(["citation_author", "dc.creator", "dcterms.creator", "article:author"]),
+      ...jsonLdAuthors,
+    ]),
+    journal: first(["citation_journal_title", "prism.publicationName", "dc.source", "dcterms.source", "og:site_name"])
+      || jsonLdJournal,
+    year: first(["citation_publication_date", "citation_online_date", "dc.date", "dcterms.issued", "article:published_time"])
+      || scholarly.datePublished
+      || scholarly.dateCreated,
+    doi: normalizeDoi(first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi"]) || jsonLdDoi || textDoi),
+    abstract: first(["citation_abstract", "dc.description", "dcterms.abstract", "description", "og:description"])
+      || scholarly.abstract
+      || scholarly.description
+      || "",
     pdfCandidates: unique([...citationPdf, ...links]),
     metadata: {
       title,
@@ -67,6 +120,7 @@ function extractFromPage() {
       citation_journal_title: first(["citation_journal_title"]),
       citation_publication_date: first(["citation_publication_date"]),
       citation_doi: normalizeDoi(first(["citation_doi"])),
+      jsonld_doi: normalizeDoi(jsonLdDoi),
       citation_pdf_url: citationPdf,
     },
   };

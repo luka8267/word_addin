@@ -240,6 +240,8 @@ class ExtensionSaveTests(unittest.TestCase):
         def stub_request(path, **kwargs):
             calls.append((path, kwargs))
             if path == "/rest/v1/paper_items_view":
+                if (kwargs.get("query_params") or {}).get("select") == "display_order":
+                    return [{"display_order": 41}]
                 return []
             if path == "/rest/v1/items" and kwargs.get("method") == "POST":
                 body = kwargs["json_body"]
@@ -247,6 +249,7 @@ class ExtensionSaveTests(unittest.TestCase):
                 self.assertEqual(body["title"], "A Useful Paper")
                 self.assertEqual(body["doi"], "10.1000/example")
                 self.assertEqual(body["publication_title"], "Journal A")
+                self.assertEqual(body["extra"]["legacy_display_order"], "42")
                 return [{"id": "item-1", **body}]
             if path == "/rest/v1/creators" and kwargs.get("method") == "POST":
                 self.assertEqual(
@@ -282,7 +285,11 @@ class ExtensionSaveTests(unittest.TestCase):
             data_access,
             "request_supabase",
             side_effect=stub_request,
-        ), patch.object(data_access, "fetch_pdf_candidate", return_value=(None, "not_pdf")):
+        ), patch.object(data_access, "fetch_pdf_candidate", return_value=(None, "not_pdf")), patch.object(
+            data_access,
+            "fetch_crossref_metadata",
+            return_value={},
+        ):
             result = data_access.save_extension_paper(AUTH_CONTEXT, payload)
 
         self.assertTrue(result["saved"])
@@ -292,6 +299,54 @@ class ExtensionSaveTests(unittest.TestCase):
         self.assertEqual(result["pdfCandidates"], ["https://example.org/paper.pdf"])
         self.assertEqual(result["pdf"]["reason"], "not_pdf")
         self.assertIn("/rest/v1/items", [path for path, _ in calls])
+
+    def test_extension_save_enriches_title_only_payload_from_doi_metadata(self):
+        def stub_request(path, **kwargs):
+            params = kwargs.get("query_params") or {}
+            if path == "/rest/v1/paper_items_view" and params.get("select") != "display_order":
+                return []
+            if path == "/rest/v1/paper_items_view" and params.get("select") == "display_order":
+                return [{"display_order": 5}]
+            if path == "/rest/v1/items" and kwargs.get("method") == "POST":
+                body = kwargs["json_body"]
+                self.assertEqual(body["title"], "Publisher Page")
+                self.assertEqual(body["publication_title"], "Crossref Journal")
+                self.assertEqual(body["year"], 2026)
+                self.assertEqual(body["doi"], "10.1000/example")
+                self.assertEqual(body["volume"], "12")
+                self.assertEqual(body["extra"]["legacy_display_order"], "6")
+                return [{"id": "item-1", **body}]
+            if path == "/rest/v1/creators" and kwargs.get("method") == "POST":
+                self.assertEqual(kwargs["json_body"][0]["literal_name"], "Jane Smith")
+                return {}
+            raise AssertionError(f"Unexpected request: {path} {kwargs}")
+
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            side_effect=stub_request,
+        ), patch.object(
+            data_access,
+            "fetch_crossref_metadata",
+            return_value={
+                "title": "Crossref Title",
+                "authors": ["Jane Smith"],
+                "journal": "Crossref Journal",
+                "year": 2026,
+                "doi": "10.1000/example",
+                "volume": "12",
+            },
+        ):
+            result = data_access.save_extension_paper(
+                AUTH_CONTEXT,
+                {
+                    "url": "https://example.org/doi/10.1000/example",
+                    "title": "Publisher Page",
+                },
+            )
+
+        self.assertTrue(result["saved"])
+        self.assertEqual(result["title"], "Publisher Page")
 
     def test_extension_save_returns_existing_item_for_duplicate_doi(self):
         calls = []
@@ -313,6 +368,10 @@ class ExtensionSaveTests(unittest.TestCase):
             data_access,
             "request_supabase",
             side_effect=stub_request,
+        ), patch.object(
+            data_access,
+            "fetch_crossref_metadata",
+            return_value={},
         ):
             result = data_access.save_extension_paper(
                 AUTH_CONTEXT,

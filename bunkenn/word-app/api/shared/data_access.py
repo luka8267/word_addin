@@ -102,6 +102,96 @@ def normalize_author_list(value) -> list[str]:
     return names[:50]
 
 
+def extract_doi_from_values(*values) -> str:
+    for value in values:
+        doi = normalize_doi(value)
+        if doi and DOI_PATTERN.search(doi):
+            return doi
+    return ""
+
+
+def fetch_crossref_metadata(doi: str) -> dict:
+    normalized_doi = normalize_doi(doi)
+    if not normalized_doi:
+        return {}
+    url = f"https://api.crossref.org/works/{quote(normalized_doi, safe='')}"
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/json",
+            "User-Agent": "bunken-extension/1.0 (mailto:metadata@bunken.local)",
+        },
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception:
+        return {}
+
+    message = payload.get("message") if isinstance(payload, dict) else {}
+    if not isinstance(message, dict):
+        return {}
+    authors = []
+    for author in message.get("author") or []:
+        if not isinstance(author, dict):
+            continue
+        literal = clean_extension_text(
+            " ".join(
+                part
+                for part in (author.get("given"), author.get("family"))
+                if part
+            ),
+            300,
+        )
+        if literal:
+            authors.append(literal)
+
+    issued_parts = (
+        ((message.get("published-print") or {}).get("date-parts"))
+        or ((message.get("published-online") or {}).get("date-parts"))
+        or ((message.get("issued") or {}).get("date-parts"))
+        or []
+    )
+    year = None
+    if issued_parts and issued_parts[0]:
+        year = parse_year(issued_parts[0][0])
+
+    return {
+        "title": clean_extension_text((message.get("title") or [""])[0], 1000),
+        "authors": authors,
+        "journal": clean_extension_text(
+            (message.get("container-title") or message.get("short-container-title") or [""])[0],
+            1000,
+        ),
+        "year": year,
+        "doi": normalize_doi(message.get("DOI") or normalized_doi),
+        "url": clean_extension_text(message.get("URL") or "", 2000),
+        "publisher": clean_extension_text(message.get("publisher") or "", 1000),
+        "volume": clean_extension_text(message.get("volume") or "", 100),
+        "issue": clean_extension_text(message.get("issue") or "", 100),
+        "pages": clean_extension_text(message.get("page") or "", 200),
+        "abstract": clean_extension_text(message.get("abstract") or "", 10000),
+    }
+
+
+def merge_extension_metadata(source: dict, metadata: dict) -> dict:
+    if not metadata:
+        return source
+    merged = dict(source)
+    for field in ("title", "journal", "url", "abstract"):
+        if not merged.get(field) and metadata.get(field):
+            merged[field] = metadata[field]
+    for field in ("year", "volume", "issue", "pages", "publisher"):
+        if not merged.get(field) and metadata.get(field):
+            merged[field] = metadata[field]
+    if not merged.get("doi") and metadata.get("doi"):
+        merged["doi"] = metadata["doi"]
+    if not merged.get("authors") and metadata.get("authors"):
+        merged["authors"] = metadata["authors"]
+    return merged
+
+
 def extension_source_from_payload(payload: dict) -> dict:
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     source_url = clean_extension_text(payload.get("url") or metadata.get("url"), 2000)
@@ -110,12 +200,19 @@ def extension_source_from_payload(payload: dict) -> dict:
         candidate = clean_extension_text(value, 2000)
         if candidate and candidate not in pdf_candidates:
             pdf_candidates.append(candidate)
+    doi = extract_doi_from_values(
+        payload.get("doi"),
+        metadata.get("doi"),
+        metadata.get("citation_doi"),
+        source_url,
+        payload.get("title"),
+    )
     return {
         "title": clean_extension_text(payload.get("title") or metadata.get("title") or metadata.get("citation_title"), 1000),
         "authors": normalize_author_list(payload.get("authors") or metadata.get("authors") or metadata.get("citation_authors")),
         "journal": clean_extension_text(payload.get("journal") or metadata.get("journal") or metadata.get("citation_journal_title"), 1000),
         "year": parse_year(payload.get("year") or metadata.get("year") or metadata.get("citation_publication_date")),
-        "doi": normalize_doi(payload.get("doi") or metadata.get("doi") or metadata.get("citation_doi")),
+        "doi": doi,
         "url": source_url,
         "abstract": clean_extension_text(payload.get("abstract") or metadata.get("abstract") or metadata.get("description"), 10000),
         "pdfCandidates": pdf_candidates,
@@ -727,9 +824,35 @@ def find_existing_extension_item(context: dict[str, str], source: dict) -> dict 
     return None
 
 
+def get_next_extension_display_order(context: dict[str, str]) -> int:
+    user_id = context.get("userId", "")
+    auth = supabase_request_auth(context)
+    try:
+        rows = request_supabase(
+            "/rest/v1/paper_items_view",
+            query_params={
+                "select": "display_order",
+                "user_id": f"eq.{user_id}",
+                "order": "display_order.desc.nullslast",
+                "limit": "1",
+            },
+            bearer_token=auth["bearer_token"],
+            api_key=auth["api_key"],
+        )
+    except Exception:
+        return 1
+    if not rows:
+        return 1
+    try:
+        return int(rows[0].get("display_order") or 0) + 1
+    except (TypeError, ValueError):
+        return 1
+
+
 def create_extension_item(context: dict[str, str], source: dict) -> dict:
     user_id = context.get("userId", "")
     auth = supabase_request_auth(context)
+    display_order = get_next_extension_display_order(context)
     payload = {
         "user_id": user_id,
         "item_type": "journalArticle",
@@ -743,8 +866,12 @@ def create_extension_item(context: dict[str, str], source: dict) -> dict:
             "created_by": "chrome_extension",
             "source_url": source.get("url") or "",
             "pdf_candidates": source.get("pdfCandidates") or [],
+            "legacy_display_order": str(display_order),
         },
     }
+    for field in ("volume", "issue", "pages", "publisher"):
+        if source.get(field):
+            payload[field] = source[field]
     rows = request_supabase(
         "/rest/v1/items",
         method="POST",
@@ -805,6 +932,8 @@ def save_extension_paper(context: dict[str, str], payload: dict) -> dict:
         raise PermissionError("Authentication required")
 
     source = extension_source_from_payload(payload)
+    if source.get("doi"):
+        source = merge_extension_metadata(source, fetch_crossref_metadata(source["doi"]))
     if not source.get("title") and not source.get("doi"):
         raise ValueError("title or DOI is required")
 
