@@ -1,4 +1,4 @@
-# bunken Web Importer
+﻿# bunken Web Importer
 
 Load this folder as a Chrome or Brave Manifest V3 extension. It extracts citation metadata from the active paper page and saves it to bunken through the Vercel API.
 
@@ -16,3 +16,4 @@ Load this folder as a Chrome or Brave Manifest V3 extension. It extracts citatio
 - `citation_pdf_url` and PDF-like links found on the page
 - DOI or title/year duplicates are treated as existing records and are not inserted again.
 - Fetchable PDF candidates are uploaded to the `paper-pdfs` Storage bucket and linked through `attachments`.
+

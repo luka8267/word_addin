@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE = "https://word-addin-sooty.vercel.app";
+﻿const DEFAULT_API_BASE = "https://word-addin-sooty.vercel.app";
 const DOI_RE = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
 
 const $ = (id) => document.getElementById(id);
@@ -129,7 +129,7 @@ async function save() {
     return;
   }
   $("message").textContent = "Saving to bunken...";
-  const response = await fetch(`${apiBase}/api/extension/save`, {
+  const response = await fetch(`${apiBase}/api/addin/extension/save`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${token}`,
@@ -153,3 +153,4 @@ $("login").addEventListener("click", () => login().catch((error) => { $("message
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
 
 loadSettings().then(extract).catch((error) => { $("message").textContent = String(error); });
+
