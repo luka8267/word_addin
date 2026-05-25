@@ -63,6 +63,7 @@
   const libraryPanel = document.getElementById("library-panel");
   const libraryToggleButton = document.getElementById("library-toggle-button");
   const styleSelect = document.getElementById("style-select");
+  const customStyleInput = document.getElementById("custom-style-input");
   const locatorInput = document.getElementById("locator-input");
   const selectionMessage = document.getElementById("selection-message");
   const insertCitationButton = document.getElementById("insert-citation-button");
@@ -119,11 +120,15 @@
 
   function normalizeStyleName(style) {
     const normalized = String(style || "").trim().toLowerCase();
-    return SUPPORTED_STYLES.has(normalized) ? normalized : DEFAULT_STYLE;
+    if (!normalized) {
+      return DEFAULT_STYLE;
+    }
+    return /^[a-z0-9][a-z0-9._-]*$/.test(normalized) ? normalized : DEFAULT_STYLE;
   }
 
   function getCurrentStyle() {
-    return normalizeStyleName(styleSelect && styleSelect.value);
+    const customStyle = customStyleInput ? customStyleInput.value : "";
+    return normalizeStyleName(customStyle || (styleSelect && styleSelect.value));
   }
 
   function isNumericStyle(style) {
@@ -131,8 +136,12 @@
   }
 
   function syncStyleSelection(style) {
+    const normalized = normalizeStyleName(style);
     if (styleSelect) {
-      styleSelect.value = normalizeStyleName(style);
+      styleSelect.value = SUPPORTED_STYLES.has(normalized) ? normalized : DEFAULT_STYLE;
+    }
+    if (customStyleInput) {
+      customStyleInput.value = SUPPORTED_STYLES.has(normalized) ? "" : normalized;
     }
   }
 
@@ -199,6 +208,7 @@
     libraryToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     documentCitationsToggleButton.disabled = !state.isReady || state.isBusy || !authenticated;
     styleSelect.disabled = disabled;
+    customStyleInput.disabled = disabled;
     locatorInput.disabled = disabled;
     insertCitationButton.disabled = disabled || !state.selectedPaper;
     loadSelectedCitationButton.disabled = disabled;
@@ -1865,6 +1875,9 @@
   });
 
   styleSelect.addEventListener("change", async function () {
+    if (customStyleInput) {
+      customStyleInput.value = "";
+    }
     setBusy(true);
     setStatus("引用スタイルを更新しています。");
     try {
@@ -1880,6 +1893,26 @@
       setBusy(false);
     }
   });
+
+  if (customStyleInput) {
+    customStyleInput.addEventListener("change", async function () {
+      setBusy(true);
+      setStatus("引用スタイルを更新しています。");
+      try {
+        const documentState = await loadDocumentState();
+        documentState.style = getCurrentStyle();
+        syncStyleSelection(documentState.style);
+        await updateBibliographyFromState(documentState);
+        await loadDocumentCitationSummary(documentState);
+        state.hasLoadedDocumentCitations = true;
+        setStatus("引用スタイルを更新しました。");
+      } catch (error) {
+        setStatus(error && error.message ? error.message : "引用スタイルの更新に失敗しました。");
+      } finally {
+        setBusy(false);
+      }
+    });
+  }
 
   refreshBibliographyButton.addEventListener("click", async function () {
     setBusy(true);
