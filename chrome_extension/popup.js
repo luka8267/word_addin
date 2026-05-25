@@ -5,6 +5,23 @@ const DOI_RE = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
 const $ = (id) => document.getElementById(id);
 let currentPayload = null;
 
+function normalizePayload(payload, tab) {
+  const value = payload && typeof payload === "object" ? payload : {};
+  const title = String(value.title || tab?.title || "").trim();
+  const url = String(value.url || tab?.url || "").trim();
+  return {
+    url,
+    title,
+    authors: Array.isArray(value.authors) ? value.authors : [],
+    journal: String(value.journal || "").trim(),
+    year: String(value.year || "").trim(),
+    doi: normalizeDoi(value.doi || ""),
+    abstract: String(value.abstract || "").trim(),
+    pdfCandidates: Array.isArray(value.pdfCandidates) ? value.pdfCandidates : [],
+    metadata: value.metadata && typeof value.metadata === "object" ? value.metadata : {},
+  };
+}
+
 function normalizeDoi(value) {
   const text = String(value || "")
     .replace(/^doi:\s*/i, "")
@@ -57,17 +74,24 @@ function extractFromPage() {
 
 async function getActiveTabPayload() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractFromPage });
-  return result;
+  if (!tab?.id) {
+    throw new Error("No active tab found.");
+  }
+  try {
+    const injection = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: extractFromPage });
+    return normalizePayload(injection?.[0]?.result, tab);
+  } catch (error) {
+    return normalizePayload(null, tab);
+  }
 }
 
 function render(payload) {
-  currentPayload = payload;
+  currentPayload = normalizePayload(payload);
   $("preview").hidden = false;
-  $("title").textContent = payload.title || "Title not found";
-  $("meta").textContent = [payload.authors?.join(", "), payload.journal, payload.year].filter(Boolean).join(" / ");
-  $("doi").textContent = payload.doi ? `DOI: ${payload.doi}` : "DOI: not found";
-  $("pdf").textContent = `PDF candidates: ${payload.pdfCandidates?.length || 0}`;
+  $("title").textContent = currentPayload.title || "Title not found";
+  $("meta").textContent = [currentPayload.authors.join(", "), currentPayload.journal, currentPayload.year].filter(Boolean).join(" / ");
+  $("doi").textContent = currentPayload.doi ? `DOI: ${currentPayload.doi}` : "DOI: not found";
+  $("pdf").textContent = `PDF candidates: ${currentPayload.pdfCandidates.length}`;
 }
 
 async function loadSettings() {
@@ -125,12 +149,24 @@ async function extract() {
   $("message").textContent = "Extracting metadata from this page...";
   const payload = await getActiveTabPayload();
   render(payload);
+  if (!currentPayload.title && !currentPayload.doi) {
+    $("message").textContent = "Could not extract a title or DOI from this page. Open a paper landing page, then refresh.";
+    return false;
+  }
   $("message").textContent = "Metadata extracted. Review and save.";
+  return true;
 }
 
 async function save() {
   await saveSettings();
-  if (!currentPayload) await extract();
+  if (!currentPayload) {
+    const extracted = await extract();
+    if (!extracted) return;
+  }
+  if (!currentPayload.title && !currentPayload.doi) {
+    $("message").textContent = "Cannot save because this page has no title or DOI. Open a paper landing page, then refresh.";
+    return;
+  }
   const apiBase = $("apiBase").value.trim().replace(/\/$/, "");
   const token = $("accessToken").value.trim();
   if (!apiBase || !token) {
