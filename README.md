@@ -117,6 +117,7 @@ Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](http
 python -m unittest discover -s tests -v
 python -m json.tool chrome_extension\manifest.json
 node --check chrome_extension\popup.js
+node tests\test_chrome_extension.js
 python -m py_compile `
   api\_bunken_vercel.py `
   bunkenn\word-app\api\shared\data_access.py `

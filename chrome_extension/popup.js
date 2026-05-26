@@ -376,23 +376,37 @@ async function save(retried = false) {
   $("message").textContent = lines.join("\n");
 }
 
-$("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
-$("authPanel").addEventListener("submit", (event) => {
-  event.preventDefault();
-  login().catch((error) => { $("message").textContent = String(error); });
-});
-$("logout").addEventListener("click", () => logout().catch((error) => { $("message").textContent = String(error); }));
-$("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
-$("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
-$("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
-$("openUpdateApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
+function bootPopup() {
+  $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
+  $("authPanel").addEventListener("submit", (event) => {
+    event.preventDefault();
+    login().catch((error) => { $("message").textContent = String(error); });
+  });
+  $("logout").addEventListener("click", () => logout().catch((error) => { $("message").textContent = String(error); }));
+  $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
+  $("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
+  $("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
+  $("openUpdateApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
 
-checkForUpdate();
-loadSettings()
-  .then((isAuthenticated) => {
-    if (isAuthenticated) return extract();
-    $("message").textContent = "";
-    return null;
-  })
-  .catch((error) => { $("message").textContent = String(error); });
+  checkForUpdate();
+  loadSettings()
+    .then((isAuthenticated) => {
+      if (isAuthenticated) return extract();
+      $("message").textContent = "";
+      return null;
+    })
+    .catch((error) => { $("message").textContent = String(error); });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    buildDerivedPdfCandidates,
+    compareVersions,
+    extractFromPage,
+    normalizeDoi,
+    normalizePayload,
+  };
+} else {
+  bootPopup();
+}
 
