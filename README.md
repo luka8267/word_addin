@@ -21,6 +21,8 @@ The extension is distributed as a ZIP from the bunken app sidebar. It uses the
 production API URL baked into `chrome_extension\popup.js` and authenticates with
 the same Supabase account as bunken.
 
+Release checklist: [docs/CHROME_EXTENSION_RELEASE_CHECKLIST.md](docs/CHROME_EXTENSION_RELEASE_CHECKLIST.md)
+
 Local install / update:
 
 1. Download the ZIP from the bunken sidebar.
