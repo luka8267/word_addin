@@ -405,6 +405,7 @@ if (typeof module !== "undefined" && module.exports) {
     extractFromPage,
     normalizeDoi,
     normalizePayload,
+    setAuthenticated,
   };
 } else {
   bootPopup();

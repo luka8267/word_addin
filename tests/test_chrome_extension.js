@@ -5,6 +5,7 @@ const {
   extractFromPage,
   normalizeDoi,
   normalizePayload,
+  setAuthenticated,
 } = require("../chrome_extension/popup.js");
 
 function meta(name, content, attr = "name") {
@@ -45,6 +46,20 @@ function installDocument({ metas = [], links = [], scripts = [], bodyText = "", 
 
 function installLocation(url) {
   global.location = new URL(url);
+}
+
+function installPopupElements() {
+  const elements = {
+    authPanel: { hidden: false },
+    importPanel: { hidden: true },
+    status: { textContent: "" },
+  };
+  global.document = {
+    getElementById(id) {
+      return elements[id] || null;
+    },
+  };
+  return elements;
 }
 
 function testMetaAndJsonLdExtraction() {
@@ -128,8 +143,22 @@ function testHelpers() {
   );
 }
 
+function testAuthenticatedUiState() {
+  const elements = installPopupElements();
+  setAuthenticated(false);
+  assert.equal(elements.authPanel.hidden, false);
+  assert.equal(elements.importPanel.hidden, true);
+  assert.equal(elements.status.textContent, "未接続");
+
+  setAuthenticated(true);
+  assert.equal(elements.authPanel.hidden, true);
+  assert.equal(elements.importPanel.hidden, false);
+  assert.equal(elements.status.textContent, "ログイン済み");
+}
+
 testMetaAndJsonLdExtraction();
 testAcsDerivedPdfCandidates();
 testNormalizePayloadAddsRelativePdfCandidate();
 testHelpers();
+testAuthenticatedUiState();
 console.log("Chrome extension extraction tests passed");

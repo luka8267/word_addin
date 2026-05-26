@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "bunken Web Importer",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "現在の論文ページから文献情報とPDF候補を取得し、bunken に保存します。",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>", "https://*.vercel.app/*", "http://localhost:*/*"],
