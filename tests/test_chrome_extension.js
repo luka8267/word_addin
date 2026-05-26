@@ -64,7 +64,7 @@ function installPopupElements() {
   return elements;
 }
 
-function installChromeRuntime(version = "0.2.7") {
+function installChromeRuntime(version = "0.2.8") {
   global.chrome = {
     runtime: {
       getManifest() {
@@ -136,7 +136,7 @@ function testNormalizePayloadAddsRelativePdfCandidate() {
     null,
   );
   assert.equal(result.doi, "10.9999/test");
-  assert.deepEqual(result.pdfCandidates, ["/paper.pdf"]);
+  assert.deepEqual(result.pdfCandidates, ["https://example.org/paper.pdf"]);
 }
 
 function testHelpers() {
@@ -170,9 +170,9 @@ function testAuthenticatedUiState() {
 
 function testVersionLine() {
   const elements = installPopupElements();
-  installChromeRuntime("0.2.7");
+  installChromeRuntime("0.2.8");
   renderVersionLine();
-  assert.equal(elements.versionLine.textContent, "v0.2.7");
+  assert.equal(elements.versionLine.textContent, "v0.2.8");
 }
 
 testMetaAndJsonLdExtraction();

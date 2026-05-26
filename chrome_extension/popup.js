@@ -7,8 +7,20 @@ const $ = (id) => document.getElementById(id);
 let currentPayload = null;
 let lastPdfCandidate = "";
 
+function absolutizeUrl(baseUrl, candidateUrl) {
+  const value = String(candidateUrl || "").trim();
+  if (!value) return "";
+  try {
+    return new URL(value, baseUrl || undefined).href;
+  } catch (_error) {
+    return value;
+  }
+}
+
 function buildDerivedPdfCandidates(value, url, doi) {
-  const candidates = Array.isArray(value.pdfCandidates) ? [...value.pdfCandidates] : [];
+  const candidates = Array.isArray(value.pdfCandidates)
+    ? value.pdfCandidates.map((candidate) => absolutizeUrl(url, candidate))
+    : [];
   const parsedUrl = (() => {
     try { return new URL(url); } catch (_error) { return null; }
   })();
