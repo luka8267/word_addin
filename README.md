@@ -41,6 +41,17 @@ Smoke test:
 6. Open bunken and confirm the saved paper appears near the latest imported records.
 7. If a PDF was saved, confirm the paper has a PDF attachment. If the publisher blocks API PDF fetching, use `PDF候補を開く` and upload manually from bunken.
 
+API smoke test with a real authenticated user:
+
+```powershell
+$env:BUNKEN_EXTENSION_ACCESS_TOKEN="<Supabase access token>"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Smoke-ExtensionSave.ps1
+```
+
+This creates one smoke-test paper, posts the same DOI again to verify duplicate
+handling, searches it through `/api/addin/papers`, and attempts to save a small
+public PDF candidate to Storage. Use a test account when possible.
+
 ## Local Taskpane and API
 
 Build the static task pane into `public`:
