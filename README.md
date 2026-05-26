@@ -52,6 +52,19 @@ This creates one smoke-test paper, posts the same DOI again to verify duplicate
 handling, searches it through `/api/addin/papers`, and attempts to save a small
 public PDF candidate to Storage. Use a test account when possible.
 
+Release verification without a user token:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-ExtensionRelease.ps1
+```
+
+Release verification with an authenticated smoke save:
+
+```powershell
+$env:BUNKEN_EXTENSION_ACCESS_TOKEN="<Supabase access token>"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-ExtensionRelease.ps1 -RunAuthenticatedSmoke
+```
+
 ## Local Taskpane and API
 
 Build the static task pane into `public`:
