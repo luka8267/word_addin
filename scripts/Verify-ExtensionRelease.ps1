@@ -1,7 +1,8 @@
 param(
     [string]$ApiBase = "https://word-addin-sooty.vercel.app",
     [string]$ExpectedVersion = "",
-    [switch]$RunAuthenticatedSmoke
+    [switch]$RunAuthenticatedSmoke,
+    [switch]$AllowPdfCandidateOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -102,7 +103,11 @@ Invoke-Checked "Production extension API CORS/auth gate" {
 
 if ($RunAuthenticatedSmoke) {
     Invoke-Checked "Authenticated extension save smoke" {
-        powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Smoke-ExtensionSave.ps1" -ApiBase $ApiBase
+        $smokeArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\scripts\Smoke-ExtensionSave.ps1", "-ApiBase", $ApiBase)
+        if ($AllowPdfCandidateOnly) {
+            $smokeArgs += "-AllowPdfCandidateOnly"
+        }
+        powershell @smokeArgs
     }
 } else {
     Write-Host ""

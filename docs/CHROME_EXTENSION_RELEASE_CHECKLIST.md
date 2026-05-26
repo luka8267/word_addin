@@ -43,7 +43,8 @@ Required result:
 - The smoke paper is saved through `/api/addin/extension/save`.
 - Posting the same DOI again returns `duplicate=true`.
 - `/api/addin/papers?q=<doi>` finds the saved paper.
-- The PDF result is reported. `pdf.saved=true` confirms Storage + attachment creation. If `pdf.saved=false`, the response must include `pdfCandidates` and a reason for manual upload.
+- The response includes at least one `pdfCandidates` entry.
+- `pdf.saved=true` confirms Storage + attachment creation. If intentionally testing a publisher that blocks API PDF fetching, rerun with `-AllowPdfCandidateOnly` and confirm the response includes `pdfCandidates` plus a manual-upload reason.
 
 ## Browser extension smoke
 

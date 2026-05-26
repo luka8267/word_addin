@@ -60,7 +60,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Smoke-ExtensionSav
 
 This creates one smoke-test paper, posts the same DOI again to verify duplicate
 handling, searches it through `/api/addin/papers`, and attempts to save a small
-public PDF candidate to Storage. Use a test account when possible.
+public PDF candidate to Storage. By default it fails if the PDF is not saved.
+Use a test account when possible.
 
 Release verification without a user token:
 
@@ -75,6 +76,8 @@ $env:BUNKEN_EXTENSION_ACCESS_TOKEN="<Supabase access token>"
 # or set BUNKEN_EXTENSION_EMAIL and BUNKEN_EXTENSION_PASSWORD
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-ExtensionRelease.ps1 -RunAuthenticatedSmoke
 ```
+
+For a publisher that blocks server-side PDF fetching, add `-AllowPdfCandidateOnly`.
 
 ## Local Taskpane and API
 

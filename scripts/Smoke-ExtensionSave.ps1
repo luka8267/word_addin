@@ -6,7 +6,8 @@ param(
     [string]$Title = "",
     [string]$Doi = "",
     [string]$Url = "https://example.org/bunken-extension-smoke",
-    [string]$PdfCandidate = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+    [string]$PdfCandidate = "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    [switch]$AllowPdfCandidateOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -106,8 +107,16 @@ if (-not $second.duplicate) {
 if (-not $matched) {
     throw "Saved paper was not found through /api/addin/papers."
 }
+if (-not @($first.pdfCandidates).Count) {
+    throw "Save response did not include any PDF candidates."
+}
+if (-not $first.pdf.saved -and -not $AllowPdfCandidateOnly) {
+    $reason = $first.pdf.reason
+    throw "PDF was not saved to Storage. Reason: $reason. Rerun with -AllowPdfCandidateOnly only when testing a publisher that blocks API PDF fetching."
+}
 
 Write-Host "Smoke test passed."
 Write-Host "itemId=$($first.itemId)"
 Write-Host "pdfSaved=$($first.pdf.saved)"
+Write-Host "pdfReason=$($first.pdf.reason)"
 Write-Host "matchedItems=$($matched.Count)"
