@@ -960,10 +960,10 @@ def create_extension_attachment(context: dict[str, str], item_id: str, storage_p
 
 
 def save_extension_paper(context: dict[str, str], payload: dict) -> dict:
-    if not use_supabase():
-        raise RuntimeError("Supabase is required for Chrome extension saves")
     if not context.get("userId") or not context.get("access_token"):
         raise PermissionError("Authentication required")
+    if not use_supabase():
+        raise RuntimeError("Supabase is required for Chrome extension saves")
 
     source = extension_source_from_payload(payload)
     if source.get("doi"):

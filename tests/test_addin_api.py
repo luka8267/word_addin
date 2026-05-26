@@ -501,6 +501,11 @@ class ExtensionSaveTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 data_access.save_extension_paper({"userId": "user-1"}, {"title": "No Auth"})
 
+    def test_extension_save_requires_auth_before_supabase_config(self):
+        with patch.object(data_access, "use_supabase", return_value=False):
+            with self.assertRaises(PermissionError):
+                data_access.save_extension_paper({}, {"title": "No Auth"})
+
 
 if __name__ == "__main__":
     unittest.main()
