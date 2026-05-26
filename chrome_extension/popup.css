@@ -45,6 +45,16 @@ input, textarea, select {
   padding: 10px;
   background: #fff;
 }
+.notice {
+  border: 1px solid #f2c94c;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff8d8;
+}
+.notice p {
+  margin: 6px 0 8px;
+  color: #5b4a00;
+}
 #preview p {
   margin: 6px 0 0;
   color: #40546b;
@@ -90,7 +100,7 @@ summary {
   background: #24435f;
   color: #fff;
 }
-#logout, #openApp, #openPdf {
+#logout, #openApp, #openPdf, #openUpdateApp {
   background: #ffffff;
   color: #24435f;
   border: 1px solid #cfd8e3;

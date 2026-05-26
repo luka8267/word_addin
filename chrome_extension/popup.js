@@ -1,5 +1,6 @@
 ﻿const DEFAULT_API_BASE = "https://word-addin-sooty.vercel.app";
 const DEFAULT_APP_URL = "https://bunken-h56cct98ayvusf55qxwewt.streamlit.app";
+const LATEST_MANIFEST_URL = "https://raw.githubusercontent.com/luka8267/word_addin/main/chrome_extension/manifest.json";
 const DOI_RE = /10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i;
 
 const $ = (id) => document.getElementById(id);
@@ -51,6 +52,32 @@ function unique(values) {
 
 function asArray(value) {
   return Array.isArray(value) ? value : value ? [value] : [];
+}
+
+function compareVersions(left, right) {
+  const leftParts = String(left || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const rightParts = String(right || "0").split(".").map((part) => Number.parseInt(part, 10) || 0);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const diff = (leftParts[index] || 0) - (rightParts[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+async function checkForUpdate() {
+  const currentVersion = chrome.runtime.getManifest().version;
+  try {
+    const response = await fetch(`${LATEST_MANIFEST_URL}?t=${Date.now()}`, { cache: "no-store" });
+    const latest = await response.json();
+    const latestVersion = latest?.version || "";
+    if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
+      $("updateNotice").hidden = false;
+      $("updateText").textContent = `最新版があります。bunkenアプリから再ダウンロードしてください。現在: ${currentVersion} / 最新: ${latestVersion}`;
+    }
+  } catch (_error) {
+    // Update checks are best-effort; saving papers should keep working offline.
+  }
 }
 
 function textFromJsonLd(value) {
@@ -344,6 +371,8 @@ $("logout").addEventListener("click", () => logout().catch((error) => { $("messa
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
 $("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
 $("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
+$("openUpdateApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
 
+checkForUpdate();
 loadSettings().then(extract).catch((error) => { $("message").textContent = String(error); });
 
