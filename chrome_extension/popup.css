@@ -96,6 +96,12 @@ pre {
   font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
   color: #344760;
 }
+.version-line {
+  margin: -4px 0 0;
+  color: #718096;
+  font-size: 11px;
+  text-align: right;
+}
 
 .login-grid label {
   flex: 1 1 0;

@@ -80,6 +80,11 @@ async function checkForUpdate() {
   }
 }
 
+function renderVersionLine() {
+  const version = chrome.runtime.getManifest().version;
+  $("versionLine").textContent = version ? `v${version}` : "";
+}
+
 function setAuthenticated(isAuthenticated) {
   $("authPanel").hidden = isAuthenticated;
   $("importPanel").hidden = !isAuthenticated;
@@ -377,6 +382,7 @@ async function save(retried = false) {
 }
 
 function bootPopup() {
+  renderVersionLine();
   $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
   $("authPanel").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -405,6 +411,7 @@ if (typeof module !== "undefined" && module.exports) {
     extractFromPage,
     normalizeDoi,
     normalizePayload,
+    renderVersionLine,
     setAuthenticated,
   };
 } else {
