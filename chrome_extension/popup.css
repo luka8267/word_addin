@@ -10,7 +10,7 @@ main {
   gap: 12px;
   padding: 14px;
 }
-header, .actions, .login-grid, .auth-actions {
+header, .actions, .login-grid {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,6 +38,16 @@ input, textarea, select {
   padding: 8px;
   font: inherit;
   background: #fff;
+}
+#authPanel, #importPanel {
+  display: grid;
+  gap: 12px;
+}
+.helper {
+  margin: 0;
+  color: #40546b;
+  font-size: 13px;
+  line-height: 1.45;
 }
 #preview {
   border: 1px solid #d8e1ec;
@@ -96,7 +106,6 @@ summary {
   font-weight: 650;
 }
 #login {
-  flex: 1 1 auto;
   background: #24435f;
   color: #fff;
 }

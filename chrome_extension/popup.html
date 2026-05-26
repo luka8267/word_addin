@@ -19,48 +19,38 @@
       <button id="openUpdateApp" type="button">bunken アプリを開く</button>
     </section>
 
-    <label>API URL
-      <input id="apiBase" type="url" placeholder="https://word-addin-sooty.vercel.app">
-    </label>
-    <label>bunken アプリ URL
-      <input id="appUrl" type="url" placeholder="https://bunken-h56cct98ayvusf55qxwewt.streamlit.app">
-    </label>
-    <div class="login-grid">
-      <label>メール
-        <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
-      </label>
-      <label>パスワード
-        <input id="password" type="password" autocomplete="current-password" placeholder="Supabase password">
-      </label>
-    </div>
-    <div class="auth-actions">
+    <section id="authPanel">
+      <p class="helper">bunken と同じアカウントでログインしてください。</p>
+      <div class="login-grid">
+        <label>メール
+          <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+        </label>
+        <label>パスワード
+          <input id="password" type="password" autocomplete="current-password" placeholder="Supabase password">
+        </label>
+      </div>
       <button id="login" type="button">ログイン</button>
-      <button id="logout" type="button">ログアウト</button>
-    </div>
-
-    <details>
-      <summary>アクセストークンを直接使う</summary>
-      <label>Supabase access token
-        <textarea id="accessToken" rows="3" placeholder="Supabase access token"></textarea>
-      </label>
-    </details>
-
-    <section id="preview" hidden>
-      <strong id="title"></strong>
-      <p id="meta"></p>
-      <p id="doi"></p>
-      <p id="pdf"></p>
-      <label id="pdfSelectWrap" hidden>PDF候補
-        <select id="pdfCandidate"></select>
-      </label>
     </section>
 
-    <div class="actions">
-      <button id="extract">ページ情報を更新</button>
-      <button id="save">bunken に保存</button>
-    </div>
-    <button id="openPdf" type="button" disabled>PDF候補を開く</button>
-    <button id="openApp" type="button">bunken アプリを開く</button>
+    <section id="importPanel" hidden>
+      <section id="preview" hidden>
+        <strong id="title"></strong>
+        <p id="meta"></p>
+        <p id="doi"></p>
+        <p id="pdf"></p>
+        <label id="pdfSelectWrap" hidden>PDF候補
+          <select id="pdfCandidate"></select>
+        </label>
+      </section>
+
+      <div class="actions">
+        <button id="extract">ページ情報を更新</button>
+        <button id="save">bunken に保存</button>
+      </div>
+      <button id="openPdf" type="button" disabled>PDF候補を開く</button>
+      <button id="openApp" type="button">bunken アプリを開く</button>
+      <button id="logout" type="button">ログアウト</button>
+    </section>
 
     <pre id="message" aria-live="polite"></pre>
   </main>
