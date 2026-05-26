@@ -398,6 +398,45 @@ class ExtensionSaveTests(unittest.TestCase):
         self.assertEqual(result["itemId"], "item-1")
         self.assertNotIn("/rest/v1/items", [path for path, _ in calls])
 
+    def test_extension_save_matches_duplicate_doi_url_variants(self):
+        doi_filters = []
+
+        def stub_request(path, **kwargs):
+            if path != "/rest/v1/paper_items_view":
+                raise AssertionError(f"Unexpected request: {path} {kwargs}")
+            doi_filter = (kwargs.get("query_params") or {}).get("doi")
+            doi_filters.append(doi_filter)
+            if doi_filter == "ilike.https://doi.org/10.1000/example":
+                return [
+                    {
+                        "id": "paper-1",
+                        "item_id": "item-1",
+                        "title": "Existing URL DOI",
+                        "doi": "https://doi.org/10.1000/example",
+                    }
+                ]
+            return []
+
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            side_effect=stub_request,
+        ), patch.object(
+            data_access,
+            "fetch_crossref_metadata",
+            return_value={},
+        ):
+            result = data_access.save_extension_paper(
+                AUTH_CONTEXT,
+                {"title": "Different Landing Page Title", "doi": "10.1000/example"},
+            )
+
+        self.assertFalse(result["saved"])
+        self.assertTrue(result["duplicate"])
+        self.assertEqual(result["itemId"], "item-1")
+        self.assertIn("ilike.10.1000/example", doi_filters)
+        self.assertIn("ilike.https://doi.org/10.1000/example", doi_filters)
+
     def test_extension_save_uploads_fetchable_pdf_and_creates_attachment(self):
         calls = []
         uploads = []

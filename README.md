@@ -13,6 +13,33 @@ on Vercel.
 - `bunkenn\word-app\api\shared`: shared API logic used by Vercel handlers.
 - `api\addin\*`: Vercel Python API entry points.
 - `public`: generated static output for Vercel.
+- `chrome_extension`: Chrome / Brave MV3 extension for saving paper pages to bunken.
+
+## Chrome Extension
+
+The extension is distributed as a ZIP from the bunken app sidebar. It uses the
+production API URL baked into `chrome_extension\popup.js` and authenticates with
+the same Supabase account as bunken.
+
+Local install / update:
+
+1. Download the ZIP from the bunken sidebar.
+2. Extract the ZIP.
+3. Open `chrome://extensions` or `brave://extensions`.
+4. Enable developer mode.
+5. Remove the old `bunken Web Importer` extension if it is already installed.
+6. Choose `Load unpacked` and select the extracted `bunken-web-importer` folder.
+7. Log in once. The extension stores a refresh token, not the password.
+
+Smoke test:
+
+1. Open a paper landing page with citation metadata, DOI, or PDF links.
+2. Open the extension popup.
+3. Confirm title, DOI, and PDF candidate count are shown.
+4. Click `bunken に保存`.
+5. Confirm the popup reports either `bunken に保存しました。` or `すでに bunken に登録されています。`.
+6. Open bunken and confirm the saved paper appears near the latest imported records.
+7. If a PDF was saved, confirm the paper has a PDF attachment. If the publisher blocks API PDF fetching, use `PDF候補を開く` and upload manually from bunken.
 
 ## Local Taskpane and API
 
@@ -88,6 +115,8 @@ Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](http
 
 ```powershell
 python -m unittest discover -s tests -v
+python -m json.tool chrome_extension\manifest.json
+node --check chrome_extension\popup.js
 python -m py_compile `
   api\_bunken_vercel.py `
   bunkenn\word-app\api\shared\data_access.py `
@@ -112,6 +141,7 @@ After release:
 ```powershell
 curl.exe -L "https://word-addin-sooty.vercel.app/taskpane.html"
 curl.exe -L "https://word-addin-sooty.vercel.app/api/addin/papers?_debug=version"
+curl.exe -i -X POST "https://word-addin-sooty.vercel.app/api/addin/extension/save" -H "Content-Type: application/json" -H "Origin: chrome-extension://test" -d "{}"
 ```
 
 Then smoke-test login, search, citation insertion, bibliography update, style

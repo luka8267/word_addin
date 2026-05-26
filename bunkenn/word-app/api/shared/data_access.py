@@ -67,6 +67,25 @@ def normalize_doi(value: str | None) -> str:
     return match.group(0).rstrip(". ,;") if match else text
 
 
+def doi_lookup_values(value: str | None) -> list[str]:
+    doi = normalize_doi(value)
+    if not doi:
+        return []
+    return list(
+        dict.fromkeys(
+            [
+                doi,
+                f"doi:{doi}",
+                f"doi: {doi}",
+                f"https://doi.org/{doi}",
+                f"http://doi.org/{doi}",
+                f"https://dx.doi.org/{doi}",
+                f"http://dx.doi.org/{doi}",
+            ]
+        )
+    )
+
+
 def normalize_title_key(value: str | None) -> str:
     return re.sub(r"\s+", " ", str(value or "").strip()).lower()
 
@@ -801,13 +820,13 @@ def find_existing_extension_item(context: dict[str, str], source: dict) -> dict 
     user_id = context.get("userId", "")
     auth = supabase_request_auth(context)
     doi = source.get("doi") or ""
-    if doi:
+    for doi_value in doi_lookup_values(doi):
         rows = request_supabase(
             "/rest/v1/paper_items_view",
             query_params={
                 "select": EXTENSION_PAPER_SELECT_COLUMNS,
                 "user_id": f"eq.{user_id}",
-                "doi": f"ilike.{doi}",
+                "doi": f"ilike.{doi_value}",
                 "limit": "1",
             },
             bearer_token=auth["bearer_token"],
