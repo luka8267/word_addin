@@ -1,6 +1,7 @@
 param(
     [string]$ApiBase = "https://word-addin-sooty.vercel.app",
     [string]$ExpectedVersion = "",
+    [int]$VersionRetrySeconds = 90,
     [switch]$RunAuthenticatedSmoke,
     [switch]$AllowPdfCandidateOnly
 )
@@ -44,45 +45,65 @@ Invoke-Checked "Python compile checks" {
 }
 
 Invoke-Checked "GitHub raw manifest version" {
-    $rawUrl = "https://raw.githubusercontent.com/luka8267/word_addin/main/chrome_extension/manifest.json?verify=$([guid]::NewGuid().ToString('N'))"
-    $rawManifest = Invoke-RestMethod -Uri $rawUrl -Method Get
-    Write-Host "raw version: $($rawManifest.version)"
+    $deadline = (Get-Date).AddSeconds($VersionRetrySeconds)
+    $rawManifest = $null
+    do {
+        $rawUrl = "https://raw.githubusercontent.com/luka8267/word_addin/main/chrome_extension/manifest.json?verify=$([guid]::NewGuid().ToString('N'))"
+        $rawManifest = Invoke-RestMethod -Uri $rawUrl -Method Get
+        Write-Host "raw version: $($rawManifest.version)"
+        if ($rawManifest.version -eq $ExpectedVersion) {
+            break
+        }
+        if ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+        }
+    } while ((Get-Date) -lt $deadline)
     if ($rawManifest.version -ne $ExpectedVersion) {
         throw "Expected raw manifest version $ExpectedVersion but got $($rawManifest.version). GitHub CDN may still be stale."
     }
 }
 
 Invoke-Checked "Release ZIP version" {
-    $zipPath = Join-Path $env:TEMP "bunken-web-importer-verify.zip"
-    if (Test-Path $zipPath) {
-        Remove-Item -LiteralPath $zipPath -Force
-    }
-    $files = @("manifest.json", "popup.html", "popup.css", "popup.js", "README.md")
-    Add-Type -AssemblyName System.IO.Compression
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
-    try {
-        foreach ($file in $files) {
-            $url = "https://raw.githubusercontent.com/luka8267/word_addin/main/chrome_extension/${file}?v=$([guid]::NewGuid().ToString('N'))"
-            $bytes = (New-Object System.Net.WebClient).DownloadData($url)
-            $entry = $zip.CreateEntry("bunken-web-importer/$file")
-            $stream = $entry.Open()
-            try {
-                $stream.Write($bytes, 0, $bytes.Length)
-            } finally {
-                $stream.Dispose()
-            }
+    $deadline = (Get-Date).AddSeconds($VersionRetrySeconds)
+    $zipManifest = $null
+    do {
+        $zipPath = Join-Path $env:TEMP "bunken-web-importer-verify.zip"
+        if (Test-Path $zipPath) {
+            Remove-Item -LiteralPath $zipPath -Force
         }
-    } finally {
-        $zip.Dispose()
-    }
-    $extractDir = Join-Path $env:TEMP "bunken-web-importer-verify"
-    if (Test-Path $extractDir) {
-        Remove-Item -LiteralPath $extractDir -Recurse -Force
-    }
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
-    $zipManifest = Get-Content (Join-Path $extractDir "bunken-web-importer\manifest.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-    Write-Host "zip version: $($zipManifest.version)"
+        $files = @("manifest.json", "popup.html", "popup.css", "popup.js", "README.md")
+        Add-Type -AssemblyName System.IO.Compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($file in $files) {
+                $url = "https://raw.githubusercontent.com/luka8267/word_addin/main/chrome_extension/${file}?v=$([guid]::NewGuid().ToString('N'))"
+                $bytes = (New-Object System.Net.WebClient).DownloadData($url)
+                $entry = $zip.CreateEntry("bunken-web-importer/$file")
+                $stream = $entry.Open()
+                try {
+                    $stream.Write($bytes, 0, $bytes.Length)
+                } finally {
+                    $stream.Dispose()
+                }
+            }
+        } finally {
+            $zip.Dispose()
+        }
+        $extractDir = Join-Path $env:TEMP "bunken-web-importer-verify"
+        if (Test-Path $extractDir) {
+            Remove-Item -LiteralPath $extractDir -Recurse -Force
+        }
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+        $zipManifest = Get-Content (Join-Path $extractDir "bunken-web-importer\manifest.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+        Write-Host "zip version: $($zipManifest.version)"
+        if ($zipManifest.version -eq $ExpectedVersion) {
+            break
+        }
+        if ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+        }
+    } while ((Get-Date) -lt $deadline)
     if ($zipManifest.version -ne $ExpectedVersion) {
         throw "Expected ZIP manifest version $ExpectedVersion but got $($zipManifest.version)."
     }
