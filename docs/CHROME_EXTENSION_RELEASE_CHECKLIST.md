@@ -18,6 +18,7 @@ Required result:
 - GitHub raw manifest version matches the local manifest.
 - Release ZIP manifest version matches the local manifest.
 - Production `/api/addin/extension/save` returns CORS headers and `401 Unauthorized` without credentials.
+- `chrome_extension/manifest.json` does not request `<all_urls>` host permission. Current-tab extraction should rely on `activeTab`.
 
 ## Authenticated production smoke
 

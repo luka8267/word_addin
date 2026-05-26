@@ -64,7 +64,7 @@ function installPopupElements() {
   return elements;
 }
 
-function installChromeRuntime(version = "0.2.8") {
+function installChromeRuntime(version = "0.2.9") {
   global.chrome = {
     runtime: {
       getManifest() {
@@ -170,9 +170,9 @@ function testAuthenticatedUiState() {
 
 function testVersionLine() {
   const elements = installPopupElements();
-  installChromeRuntime("0.2.8");
+  installChromeRuntime("0.2.9");
   renderVersionLine();
-  assert.equal(elements.versionLine.textContent, "v0.2.8");
+  assert.equal(elements.versionLine.textContent, "v0.2.9");
 }
 
 testMetaAndJsonLdExtraction();

@@ -25,6 +25,9 @@ $manifest = Get-Content ".\chrome_extension\manifest.json" -Raw -Encoding UTF8 |
 if ([string]::IsNullOrWhiteSpace($ExpectedVersion)) {
     $ExpectedVersion = $manifest.version
 }
+if (@($manifest.host_permissions) -contains "<all_urls>") {
+    throw "chrome_extension/manifest.json must not request <all_urls>; use activeTab for current-page extraction."
+}
 
 Invoke-Checked "Local extension checks" {
     python -m json.tool ".\chrome_extension\manifest.json" | Out-Null
