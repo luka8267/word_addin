@@ -19,18 +19,18 @@
       <button id="openUpdateApp" type="button">bunken アプリを開く</button>
     </section>
 
-    <section id="authPanel">
+    <form id="authPanel">
       <p class="helper">bunken と同じアカウントでログインしてください。</p>
       <div class="login-grid">
         <label>メール
-          <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+          <input id="email" name="username" type="email" autocomplete="username" placeholder="you@example.com" required>
         </label>
         <label>パスワード
-          <input id="password" type="password" autocomplete="current-password" placeholder="Supabase password">
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Supabase password" required>
         </label>
       </div>
-      <button id="login" type="button">ログイン</button>
-    </section>
+      <button id="login" type="submit">ログイン</button>
+    </form>
 
     <section id="importPanel" hidden>
       <section id="preview" hidden>

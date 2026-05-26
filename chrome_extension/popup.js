@@ -377,7 +377,10 @@ async function save(retried = false) {
 }
 
 $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
-$("login").addEventListener("click", () => login().catch((error) => { $("message").textContent = String(error); }));
+$("authPanel").addEventListener("submit", (event) => {
+  event.preventDefault();
+  login().catch((error) => { $("message").textContent = String(error); });
+});
 $("logout").addEventListener("click", () => logout().catch((error) => { $("message").textContent = String(error); }));
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
 $("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
