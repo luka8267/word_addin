@@ -5,6 +5,9 @@ body {
   color: #122033;
   background: #f6f7f9;
 }
+[hidden] {
+  display: none !important;
+}
 main {
   display: grid;
   gap: 12px;

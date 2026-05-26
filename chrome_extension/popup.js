@@ -388,7 +388,7 @@ checkForUpdate();
 loadSettings()
   .then((isAuthenticated) => {
     if (isAuthenticated) return extract();
-    $("message").textContent = "ログインすると、このページの文献情報を bunken に保存できます。";
+    $("message").textContent = "";
     return null;
   })
   .catch((error) => { $("message").textContent = String(error); });
