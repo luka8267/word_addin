@@ -1,6 +1,8 @@
 param(
     [string]$ApiBase = "https://word-addin-sooty.vercel.app",
     [string]$AccessToken = $env:BUNKEN_EXTENSION_ACCESS_TOKEN,
+    [string]$Email = $env:BUNKEN_EXTENSION_EMAIL,
+    [string]$Password = $env:BUNKEN_EXTENSION_PASSWORD,
     [string]$Title = "",
     [string]$Doi = "",
     [string]$Url = "https://example.org/bunken-extension-smoke",
@@ -10,10 +12,34 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ([string]::IsNullOrWhiteSpace($AccessToken)) {
-    Write-Host "BUNKEN_EXTENSION_ACCESS_TOKEN is not set."
-    Write-Host "Set a Supabase access token for the bunken user, then rerun:"
-    Write-Host '$env:BUNKEN_EXTENSION_ACCESS_TOKEN="<access token>"'
-    exit 2
+    if ([string]::IsNullOrWhiteSpace($Email) -or [string]::IsNullOrWhiteSpace($Password)) {
+        Write-Host "BUNKEN_EXTENSION_ACCESS_TOKEN is not set."
+        Write-Host "Either set a Supabase access token:"
+        Write-Host '$env:BUNKEN_EXTENSION_ACCESS_TOKEN="<access token>"'
+        Write-Host "or set bunken login credentials so this script can request one through the add-in API:"
+        Write-Host '$env:BUNKEN_EXTENSION_EMAIL="<email>"'
+        Write-Host '$env:BUNKEN_EXTENSION_PASSWORD="<password>"'
+        exit 2
+    }
+
+    $loginBody = @{
+        email = $Email
+        password = $Password
+    } | ConvertTo-Json -Depth 4
+    $apiForLogin = $ApiBase.TrimEnd("/")
+    Write-Host "Requesting access token through $apiForLogin/api/addin/auth/login ..."
+    $login = Invoke-RestMethod `
+        -Method Post `
+        -Uri "$apiForLogin/api/addin/auth/login" `
+        -Headers @{
+            "Content-Type" = "application/json"
+            "Origin" = "chrome-extension://bunken-smoke-test"
+        } `
+        -Body $loginBody
+    $AccessToken = $login.accessToken
+    if ([string]::IsNullOrWhiteSpace($AccessToken)) {
+        throw "Login response did not include accessToken."
+    }
 }
 
 $stamp = Get-Date -Format "yyyyMMddHHmmss"

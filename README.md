@@ -48,6 +48,14 @@ $env:BUNKEN_EXTENSION_ACCESS_TOKEN="<Supabase access token>"
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Smoke-ExtensionSave.ps1
 ```
 
+You can also let the script request an access token through the add-in login API:
+
+```powershell
+$env:BUNKEN_EXTENSION_EMAIL="<email>"
+$env:BUNKEN_EXTENSION_PASSWORD="<password>"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Smoke-ExtensionSave.ps1
+```
+
 This creates one smoke-test paper, posts the same DOI again to verify duplicate
 handling, searches it through `/api/addin/papers`, and attempts to save a small
 public PDF candidate to Storage. Use a test account when possible.
@@ -62,6 +70,7 @@ Release verification with an authenticated smoke save:
 
 ```powershell
 $env:BUNKEN_EXTENSION_ACCESS_TOKEN="<Supabase access token>"
+# or set BUNKEN_EXTENSION_EMAIL and BUNKEN_EXTENSION_PASSWORD
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Verify-ExtensionRelease.ps1 -RunAuthenticatedSmoke
 ```
 
