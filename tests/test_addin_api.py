@@ -398,6 +398,65 @@ class ExtensionSaveTests(unittest.TestCase):
         self.assertEqual(result["itemId"], "item-1")
         self.assertNotIn("/rest/v1/items", [path for path, _ in calls])
 
+    def test_extension_save_uploads_fetchable_pdf_and_creates_attachment(self):
+        calls = []
+        uploads = []
+
+        def stub_request(path, **kwargs):
+            calls.append((path, kwargs))
+            if path == "/rest/v1/paper_items_view":
+                if (kwargs.get("query_params") or {}).get("select") == "display_order":
+                    return []
+                return []
+            if path == "/rest/v1/items" and kwargs.get("method") == "POST":
+                return [{"id": "item-1", **kwargs["json_body"]}]
+            if path == "/rest/v1/attachments" and kwargs.get("method") == "POST":
+                body = kwargs["json_body"]
+                self.assertEqual(body["item_id"], "item-1")
+                self.assertEqual(body["user_id"], "user-1")
+                self.assertEqual(body["kind"], "pdf")
+                self.assertEqual(body["content_type"], "application/pdf")
+                self.assertTrue(body["storage_path"].endswith(".pdf"))
+                return {}
+            raise AssertionError(f"Unexpected request: {path} {kwargs}")
+
+        def stub_upload(path, body, content_type, context):
+            uploads.append((path, body, content_type, context))
+
+        with patch.object(data_access, "use_supabase", return_value=True), patch.object(
+            data_access,
+            "request_supabase",
+            side_effect=stub_request,
+        ), patch.object(
+            data_access,
+            "fetch_crossref_metadata",
+            return_value={},
+        ), patch.object(
+            data_access,
+            "fetch_pdf_candidate",
+            return_value=(b"%PDF-1.7 fake", "ok"),
+        ), patch.object(
+            data_access,
+            "storage_upload",
+            side_effect=stub_upload,
+        ):
+            result = data_access.save_extension_paper(
+                AUTH_CONTEXT,
+                {
+                    "title": "PDF Paper",
+                    "url": "https://example.org/article",
+                    "pdfCandidates": ["https://example.org/paper.pdf"],
+                },
+            )
+
+        self.assertTrue(result["saved"])
+        self.assertTrue(result["pdf"]["saved"])
+        self.assertEqual(result["pdf"]["reason"], "ok")
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(uploads[0][1], b"%PDF-1.7 fake")
+        self.assertEqual(uploads[0][2], "application/pdf")
+        self.assertIn("/rest/v1/attachments", [path for path, _ in calls])
+
     def test_extension_save_requires_authenticated_context(self):
         with patch.object(data_access, "use_supabase", return_value=True):
             with self.assertRaises(PermissionError):
