@@ -10,7 +10,7 @@ main {
   gap: 12px;
   padding: 14px;
 }
-header, .actions, .login-grid {
+header, .actions, .login-grid, .auth-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -30,7 +30,7 @@ label {
   font-size: 12px;
   font-weight: 650;
 }
-input, textarea {
+input, textarea, select {
   box-sizing: border-box;
   width: 100%;
   border: 1px solid #cfd8e3;
@@ -48,6 +48,9 @@ input, textarea {
 #preview p {
   margin: 6px 0 0;
   color: #40546b;
+}
+#pdfSelectWrap {
+  margin-top: 8px;
 }
 button {
   border: 0;
@@ -83,10 +86,11 @@ summary {
   font-weight: 650;
 }
 #login {
+  flex: 1 1 auto;
   background: #24435f;
   color: #fff;
 }
-#openApp, #openPdf {
+#logout, #openApp, #openPdf {
   background: #ffffff;
   color: #24435f;
   border: 1px solid #cfd8e3;

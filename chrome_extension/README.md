@@ -1,22 +1,35 @@
-﻿# bunken Web Importer
+# bunken Web Importer
 
-Load this folder as a Chrome or Brave Manifest V3 extension. It extracts citation metadata from the active paper page and saves it to bunken through the Vercel API.
+Chrome / Brave から現在開いている論文ページを bunken に登録するための Manifest V3 拡張機能です。
 
-## Local loading
+## できること
 
-1. Open `chrome://extensions` or `brave://extensions`.
-2. Enable Developer mode.
-3. Choose Load unpacked and select this `chrome_extension` folder.
-4. Open the popup, enter the Vercel API URL and bunken app URL, then sign in with the same Supabase account used by bunken.
-5. Open a paper page and click Save to bunken.
+- 論文ページからタイトル、著者、雑誌名、年、DOI、URL、abstract を取得
+- `citation_pdf_url`、PDFリンク、ACS の DOI ページから PDF 候補を検出
+- DOI がある場合は Crossref 側のメタデータで補完
+- DOI またはタイトル・年で重複を確認
+- 取得できるPDFは Supabase Storage の `paper-pdfs` に保存
+- ACS などサーバー側取得がブロックされるPDFは、候補URLをブラウザで開いて手動アップロード
+- Supabase refresh token を保存し、毎回パスワードを入力せずに利用
 
-## Saved data
+## インストール
 
-- title, authors, journal, year, DOI, URL, abstract
-- `citation_pdf_url` and PDF-like links found on the page
-- DOI or title/year duplicates are treated as existing records and are not inserted again.
-- Fetchable PDF candidates are uploaded to the `paper-pdfs` Storage bucket and linked through `attachments`.
-- If the PDF cannot be fetched by the API, the popup shows the first PDF candidate and provides an Open bunken app button for manual upload from the paper detail pane.
-- Some publishers such as ACS can block server-side PDF fetches with Cloudflare or institutional-login checks. In that case, use Open PDF candidate in the extension, download the PDF in the browser, then upload it from the bunken paper detail pane.
-- The extension stores a Supabase refresh token after sign-in, so you should not need to enter your password every time.
+1. bunken アプリのサイドバーから「Chrome拡張機能」をダウンロードします。
+2. ZIPを展開します。
+3. Chrome なら `chrome://extensions`、Brave なら `brave://extensions` を開きます。
+4. デベロッパーモードをオンにします。
+5. 「パッケージ化されていない拡張機能を読み込む」から展開したフォルダを選びます。
+6. 拡張機能のポップアップを開き、bunken と同じメール・パスワードでログインします。
 
+## 使い方
+
+1. 論文のランディングページを開きます。
+2. 拡張機能を開き、「ページ情報を更新」で取得内容を確認します。
+3. 「bunken に保存」を押します。
+4. PDF候補が表示された場合は、「PDF候補を開く」からPDFを開き、必要なら bunken の文献詳細で手動アップロードします。
+
+## 注意
+
+- ACS など一部出版社は Cloudflare や機関認証により、Vercel API からPDFを直接取得できないことがあります。
+- パスワードは保存しません。ログイン後は refresh token でセッションを更新します。
+- 共有PCで使う場合は、ポップアップの「ログアウト」を押してください。

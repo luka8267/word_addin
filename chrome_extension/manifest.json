@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "bunken Web Importer",
-  "version": "0.1.0",
-  "description": "Save papers from the current browser tab to bunken.",
+  "version": "0.2.0",
+  "description": "現在の論文ページから文献情報とPDF候補を取得し、bunken に保存します。",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["<all_urls>", "https://*.vercel.app/*", "http://localhost:*/*"],
   "action": {
-    "default_title": "Save to bunken",
+    "default_title": "bunken に保存",
     "default_popup": "popup.html"
   }
 }

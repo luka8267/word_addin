@@ -162,14 +162,21 @@ async function getActiveTabPayload() {
 function render(payload) {
   currentPayload = normalizePayload(payload);
   $("preview").hidden = false;
-  $("title").textContent = currentPayload.title || "Title not found";
+  $("title").textContent = currentPayload.title || "タイトルを取得できませんでした";
   $("meta").textContent = [currentPayload.authors.join(", "), currentPayload.journal, currentPayload.year].filter(Boolean).join(" / ");
-  $("doi").textContent = currentPayload.doi ? `DOI: ${currentPayload.doi}` : "DOI: not found";
+  $("doi").textContent = currentPayload.doi ? `DOI: ${currentPayload.doi}` : "DOI: 未取得";
   lastPdfCandidate = currentPayload.pdfCandidates[0] || "";
   $("openPdf").disabled = !lastPdfCandidate;
+  $("pdfCandidate").replaceChildren(...currentPayload.pdfCandidates.map((candidate) => {
+    const option = document.createElement("option");
+    option.value = candidate;
+    option.textContent = candidate;
+    return option;
+  }));
+  $("pdfSelectWrap").hidden = currentPayload.pdfCandidates.length === 0;
   $("pdf").textContent = lastPdfCandidate
-    ? `PDF candidates: ${currentPayload.pdfCandidates.length} / ${lastPdfCandidate}`
-    : `PDF candidates: ${currentPayload.pdfCandidates.length}`;
+    ? `PDF候補: ${currentPayload.pdfCandidates.length}件`
+    : `PDF候補: ${currentPayload.pdfCandidates.length}件`;
 }
 
 async function loadSettings() {
@@ -178,7 +185,7 @@ async function loadSettings() {
   $("appUrl").value = values.appUrl || DEFAULT_APP_URL;
   $("accessToken").value = values.accessToken || "";
   $("email").value = values.email || "";
-  $("status").textContent = values.accessToken || values.refreshToken ? "Signed in" : "Not connected";
+  $("status").textContent = values.accessToken || values.refreshToken ? "ログイン済み" : "未接続";
 }
 
 async function saveSettings() {
@@ -208,7 +215,7 @@ async function refreshSession() {
     refreshToken: result.refreshToken || refreshToken,
     email: result.email || $("email").value.trim(),
   });
-  $("status").textContent = "Signed in";
+  $("status").textContent = "ログイン済み";
   return result.accessToken;
 }
 
@@ -220,11 +227,13 @@ async function getAccessToken() {
 }
 
 async function openPdfCandidate() {
+  const selectedCandidate = $("pdfCandidate")?.value || "";
+  if (selectedCandidate) lastPdfCandidate = selectedCandidate;
   if (!lastPdfCandidate && currentPayload?.pdfCandidates?.length) {
     lastPdfCandidate = currentPayload.pdfCandidates[0];
   }
   if (!lastPdfCandidate) {
-    $("message").textContent = "No PDF candidate found on this page.";
+    $("message").textContent = "このページではPDF候補を取得できませんでした。";
     return;
   }
   await chrome.tabs.create({ url: lastPdfCandidate });
@@ -236,16 +245,24 @@ async function openApp() {
   await chrome.tabs.create({ url: appUrl });
 }
 
+async function logout() {
+  $("accessToken").value = "";
+  $("password").value = "";
+  await chrome.storage.sync.remove(["accessToken", "refreshToken"]);
+  $("status").textContent = "未接続";
+  $("message").textContent = "ログアウトしました。次回保存時はもう一度ログインしてください。";
+}
+
 async function login() {
   await saveSettings();
   const apiBase = $("apiBase").value.trim().replace(/\/$/, "");
   const email = $("email").value.trim();
   const password = $("password").value;
   if (!apiBase || !email || !password) {
-    $("message").textContent = "Enter API URL, email, and password.";
+    $("message").textContent = "API URL、メール、パスワードを入力してください。";
     return;
   }
-  $("message").textContent = "Signing in...";
+  $("message").textContent = "ログインしています...";
   const response = await fetch(`${apiBase}/api/addin/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -253,26 +270,26 @@ async function login() {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.accessToken) {
-    $("message").textContent = `Sign in failed: ${result.error || response.status}`;
+    $("message").textContent = `ログインに失敗しました: ${result.error || response.status}`;
     return;
   }
   $("accessToken").value = result.accessToken;
   $("password").value = "";
   await saveSettings();
   await chrome.storage.sync.set({ refreshToken: result.refreshToken || "" });
-  $("status").textContent = "Signed in";
-  $("message").textContent = "Signed in. You can save this paper.";
+  $("status").textContent = "ログイン済み";
+  $("message").textContent = "ログインしました。この文献を保存できます。";
 }
 
 async function extract() {
-  $("message").textContent = "Extracting metadata from this page...";
+  $("message").textContent = "このページから文献情報を取得しています...";
   const payload = await getActiveTabPayload();
   render(payload);
   if (!currentPayload.title && !currentPayload.doi) {
-    $("message").textContent = "Could not extract a title or DOI from this page. Open a paper landing page, then refresh.";
+    $("message").textContent = "タイトルやDOIを取得できませんでした。論文ページを開いてから更新してください。";
     return false;
   }
-  $("message").textContent = "Metadata extracted. Review and save.";
+  $("message").textContent = "文献情報を取得しました。内容を確認して保存してください。";
   return true;
 }
 
@@ -283,16 +300,16 @@ async function save(retried = false) {
     if (!extracted) return;
   }
   if (!currentPayload.title && !currentPayload.doi) {
-    $("message").textContent = "Cannot save because this page has no title or DOI. Open a paper landing page, then refresh.";
+    $("message").textContent = "タイトルやDOIがないため保存できません。論文ページを開いてから更新してください。";
     return;
   }
   const apiBase = $("apiBase").value.trim().replace(/\/$/, "");
   const token = await getAccessToken();
   if (!apiBase || !token) {
-    $("message").textContent = "Sign in once. After that, bunken will keep you signed in automatically.";
+    $("message").textContent = "一度ログインしてください。以後は自動でログイン状態を更新します。";
     return;
   }
-  $("message").textContent = "Saving to bunken...";
+  $("message").textContent = "bunken に保存しています...";
   const response = await fetch(`${apiBase}/api/addin/extension/save`, {
     method: "POST",
     headers: {
@@ -306,22 +323,24 @@ async function save(retried = false) {
     return save(true);
   }
   if (!response.ok) {
-    $("message").textContent = `Save failed: ${result.error || response.status}`;
+    $("message").textContent = `保存に失敗しました: ${result.error || response.status}`;
     return;
   }
-  const lines = [result.duplicate ? "Already exists in bunken." : "Saved to bunken."];
-  if (result.pdf?.saved) lines.push(`PDF saved: ${result.pdf.storagePath}`);
+  const lines = [result.duplicate ? "すでに bunken に登録されています。" : "bunken に保存しました。"];
+  if (result.pdf?.saved) lines.push(`PDFも保存しました: ${result.pdf.storagePath}`);
   else if (result.pdfCandidates?.length) {
     lastPdfCandidate = result.pdfCandidates[0];
+    render({ ...currentPayload, pdfCandidates: result.pdfCandidates });
     $("openPdf").disabled = false;
-    lines.push(`PDF candidate: ${result.pdfCandidates[0]}`);
-    lines.push("Open bunken app and use the paper detail pane to upload the PDF manually if needed.");
+    lines.push(`PDF候補: ${result.pdfCandidates[0]}`);
+    lines.push("PDFを直接保存できない場合は、PDF候補を開いてダウンロードし、bunken の文献詳細から手動でアップロードしてください。");
   }
   $("message").textContent = lines.join("\n");
 }
 
 $("extract").addEventListener("click", () => extract().catch((error) => { $("message").textContent = String(error); }));
 $("login").addEventListener("click", () => login().catch((error) => { $("message").textContent = String(error); }));
+$("logout").addEventListener("click", () => logout().catch((error) => { $("message").textContent = String(error); }));
 $("save").addEventListener("click", () => save().catch((error) => { $("message").textContent = String(error); }));
 $("openPdf").addEventListener("click", () => openPdfCandidate().catch((error) => { $("message").textContent = String(error); }));
 $("openApp").addEventListener("click", () => openApp().catch((error) => { $("message").textContent = String(error); }));
