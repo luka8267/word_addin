@@ -7,6 +7,7 @@ const {
   normalizePayload,
   renderVersionLine,
   setAuthenticated,
+  shouldRefreshAuth,
 } = require("../chrome_extension/popup.js");
 
 function meta(name, content, attr = "name") {
@@ -155,6 +156,19 @@ function testHelpers() {
   );
 }
 
+function testExpiredAuthDetection() {
+  assert.equal(shouldRefreshAuth({ status: 401 }, { error: "Authentication expired" }), true);
+  assert.equal(
+    shouldRefreshAuth(
+      { status: 403 },
+      { error: 'Supabase request failed: 403 {"error_code":"bad_jwt","msg":"token is expired"}' },
+    ),
+    true,
+  );
+  assert.equal(shouldRefreshAuth({ status: 403 }, { error: "RLS denied" }), false);
+  assert.equal(shouldRefreshAuth({ status: 500 }, { error: "token is expired" }), false);
+}
+
 function testAuthenticatedUiState() {
   const elements = installPopupElements();
   setAuthenticated(false);
@@ -179,6 +193,7 @@ testMetaAndJsonLdExtraction();
 testAcsDerivedPdfCandidates();
 testNormalizePayloadAddsRelativePdfCandidate();
 testHelpers();
+testExpiredAuthDetection();
 testAuthenticatedUiState();
 testVersionLine();
 console.log("Chrome extension extraction tests passed");

@@ -37,6 +37,12 @@ EXTENSION_PAPER_SELECT_COLUMNS = "id,item_id,title,authors,journal,year,doi,user
 PDF_STORAGE_BUCKET = os.getenv("BUNKEN_PDF_STORAGE_BUCKET", "paper-pdfs")
 MAX_EXTENSION_PDF_BYTES = int(os.getenv("BUNKEN_EXTENSION_MAX_PDF_BYTES", str(25 * 1024 * 1024)))
 DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+SUPABASE_AUTH_ERROR_MARKERS = (
+    "bad_jwt",
+    "invalid jwt",
+    "token is expired",
+    "jwt expired",
+)
 
 
 
@@ -485,7 +491,16 @@ def request_supabase(
             return json.loads(raw) if raw else {}
     except HTTPError as error:
         error_body = error.read().decode("utf-8", errors="replace")
+        if is_supabase_auth_error(error.code, error_body):
+            raise PermissionError("Authentication expired") from error
         raise RuntimeError(f"Supabase request failed: {error.code} {error_body}") from error
+
+
+def is_supabase_auth_error(status_code: int, body: str) -> bool:
+    if status_code not in {401, 403}:
+        return False
+    lowered = str(body or "").lower()
+    return any(marker in lowered for marker in SUPABASE_AUTH_ERROR_MARKERS)
 
 
 def is_missing_metadata_column_error(error: Exception) -> bool:

@@ -1,6 +1,8 @@
+import io
 import sys
 import unittest
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 
@@ -80,6 +82,27 @@ class SupabaseStub:
 
 
 class AddinDataAccessTests(unittest.TestCase):
+    def test_request_supabase_maps_expired_jwt_to_permission_error(self):
+        body = b'{"code":403,"error_code":"bad_jwt","msg":"invalid JWT: token is expired"}'
+        error = HTTPError(
+            "https://example.supabase.co/rest/v1/items",
+            403,
+            "Forbidden",
+            {},
+            io.BytesIO(body),
+        )
+        with patch.object(data_access, "SUPABASE_URL", "https://example.supabase.co"), patch.object(
+            data_access,
+            "SUPABASE_PUBLIC_KEY",
+            "anon-key",
+        ), patch.object(data_access, "urlopen", side_effect=error):
+            with self.assertRaises(PermissionError):
+                data_access.request_supabase(
+                    "/rest/v1/items",
+                    bearer_token="expired-token",
+                    api_key="anon-key",
+                )
+
     def test_refresh_access_token_uses_supabase_refresh_grant(self):
         with patch.object(data_access, "use_supabase", return_value=True), patch.object(
             data_access,

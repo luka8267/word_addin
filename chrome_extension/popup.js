@@ -77,6 +77,12 @@ function compareVersions(left, right) {
   return 0;
 }
 
+function shouldRefreshAuth(response, result) {
+  if (response?.status === 401) return true;
+  const errorText = String(result?.error || result?.message || "").toLowerCase();
+  return response?.status === 403 && /bad_jwt|invalid jwt|token is expired|jwt expired/.test(errorText);
+}
+
 async function checkForUpdate() {
   const currentVersion = chrome.runtime.getManifest().version;
   try {
@@ -370,7 +376,7 @@ async function save(retried = false) {
     body: JSON.stringify(currentPayload),
   });
   let result = await response.json().catch(() => ({}));
-  if (response.status === 401 && !retried) {
+  if (shouldRefreshAuth(response, result) && !retried) {
     if (await refreshSession()) return save(true);
     await chrome.storage.sync.remove(["accessToken", "refreshToken"]);
     setAuthenticated(false);
@@ -425,6 +431,7 @@ if (typeof module !== "undefined" && module.exports) {
     normalizePayload,
     renderVersionLine,
     setAuthenticated,
+    shouldRefreshAuth,
   };
 } else {
   bootPopup();
