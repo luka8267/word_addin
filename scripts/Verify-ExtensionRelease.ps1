@@ -132,6 +132,9 @@ if ($RunAuthenticatedSmoke) {
             $smokeArgs += "-AllowPdfCandidateOnly"
         }
         powershell @smokeArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Authenticated extension save smoke failed with exit code $LASTEXITCODE."
+        }
     }
 } else {
     Write-Host ""
