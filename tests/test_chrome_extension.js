@@ -3,6 +3,7 @@ const {
   buildDerivedPdfCandidates,
   compareVersions,
   extractFromPage,
+  isLikelyPaperPayload,
   normalizeDoi,
   normalizePayload,
   renderVersionLine,
@@ -106,6 +107,7 @@ function testMetaAndJsonLdExtraction() {
   assert.equal(result.journal, "Journal of Tests");
   assert.equal(result.year, "2026-05-27");
   assert.equal(result.doi, "10.1234/example.2026");
+  assert.equal(result.isLikelyPaper, true);
   assert.equal(result.abstract, "Abstract from meta.");
   assert.deepEqual(result.pdfCandidates, [
     "https://example.org/paper.pdf",
@@ -122,6 +124,7 @@ function testAcsDerivedPdfCandidates() {
 
   const result = extractFromPage();
   assert.equal(result.doi, "10.1021/jp512766r");
+  assert.equal(result.isLikelyPaper, true);
   assert.equal(result.pdfCandidates[0], "https://pubs.acs.org/doi/pdfplus/10.1021/jp512766r");
   assert.equal(result.pdfCandidates[1], "https://pubs.acs.org/doi/pdf/10.1021/jp512766r");
 }
@@ -137,11 +140,42 @@ function testNormalizePayloadAddsRelativePdfCandidate() {
     null,
   );
   assert.equal(result.doi, "10.9999/test");
+  assert.equal(result.isLikelyPaper, true);
   assert.deepEqual(result.pdfCandidates, ["https://example.org/paper.pdf"]);
+}
+
+function testGenericWebPageIsNotLikelyPaper() {
+  installLocation("https://example.org/about");
+  installDocument({
+    title: "About Example",
+    metas: [
+      meta("og:title", "About Example", "property"),
+      meta("description", "A normal website page."),
+    ],
+    links: [link("https://example.org/brochure.pdf")],
+    bodyText: "This is not an academic paper.",
+  });
+
+  const result = extractFromPage();
+  assert.equal(result.title, "About Example");
+  assert.equal(result.doi, "");
+  assert.equal(result.isLikelyPaper, false);
+  assert.equal(normalizePayload(null, { title: "Browser Title", url: "https://example.org" }).isLikelyPaper, false);
 }
 
 function testHelpers() {
   assert.equal(normalizeDoi("https://dx.doi.org/10.5555/abc."), "10.5555/abc");
+  assert.equal(isLikelyPaperPayload({ url: "https://doi.org/10.5555/abc" }), true);
+  assert.equal(isLikelyPaperPayload({ title: "Just a page", url: "https://example.org" }), false);
+  assert.equal(
+    isLikelyPaperPayload({
+      metadata: {
+        citation_title: "Paper title",
+        citation_authors: ["Alice"],
+      },
+    }),
+    true,
+  );
   assert.equal(compareVersions("0.2.10", "0.2.4") > 0, true);
   assert.deepEqual(
     buildDerivedPdfCandidates(
@@ -192,6 +226,7 @@ function testVersionLine() {
 testMetaAndJsonLdExtraction();
 testAcsDerivedPdfCandidates();
 testNormalizePayloadAddsRelativePdfCandidate();
+testGenericWebPageIsNotLikelyPaper();
 testHelpers();
 testExpiredAuthDetection();
 testAuthenticatedUiState();
