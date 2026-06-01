@@ -1221,8 +1221,12 @@
 
   function numberBibliographyEntries(entries) {
     return (entries || []).map(function (entry, index) {
-      return `${formatReferenceLabel(index + 1)} ${entry}`;
+      return `${formatReferenceLabel(index + 1)} ${stripLeadingBibliographyNumber(entry)}`;
     });
+  }
+
+  function stripLeadingBibliographyNumber(entry) {
+    return String(entry || "").replace(/^\s*(?:\[\d+\]|\d+[\.)])\s*/, "");
   }
 
   function escapeHtml(value) {
