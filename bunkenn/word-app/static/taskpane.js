@@ -1221,7 +1221,7 @@
 
   function numberBibliographyEntries(entries) {
     return (entries || []).map(function (entry, index) {
-      return `${index + 1}. ${entry}`;
+      return `${formatReferenceLabel(index + 1)} ${entry}`;
     });
   }
 
