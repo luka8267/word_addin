@@ -1405,10 +1405,22 @@
       await context.sync();
 
       const bodyEnd = context.document.body.getRange(Word.RangeLocation.end);
+      bodyEnd.load("font/name,font/size");
+      await context.sync();
+      const bibliographyFontName = bodyEnd.font && bodyEnd.font.name ? bodyEnd.font.name : "";
+      const bibliographyFontSize = bodyEnd.font && bodyEnd.font.size ? bodyEnd.font.size : null;
+
       const control = bodyEnd.insertContentControl();
       control.tag = BIBLIOGRAPHY_TAG;
       control.title = "bunken bibliography";
       control.insertHtml(htmlContent, Word.InsertLocation.replace);
+      const bibliographyRange = control.getRange();
+      if (bibliographyFontName) {
+        bibliographyRange.font.name = bibliographyFontName;
+      }
+      if (bibliographyFontSize) {
+        bibliographyRange.font.size = bibliographyFontSize;
+      }
       context.load(control, "id");
 
       await context.sync();
