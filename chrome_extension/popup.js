@@ -44,6 +44,10 @@ function normalizePayload(payload, tab) {
     journal: String(value.journal || "").trim(),
     year: String(value.year || "").trim(),
     doi: normalizeDoi(value.doi || ""),
+    volume: String(value.volume || metadata.volume || "").trim(),
+    issue: String(value.issue || metadata.issue || "").trim(),
+    pages: String(value.pages || metadata.pages || "").trim(),
+    publisher: String(value.publisher || metadata.publisher || "").trim(),
     abstract: String(value.abstract || "").trim(),
     pdfCandidates: buildDerivedPdfCandidates(value, url, value.doi),
     isLikelyPaper: isLikelyPaperPayload({ ...value, url, metadata }),
@@ -189,7 +193,8 @@ function extractFromPage() {
   const links = [...document.querySelectorAll("a[href], link[href]")]
     .map((node) => node.href || node.getAttribute("href") || "")
     .filter((href) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(href));
-  const citationPdf = byName(["citation_pdf_url"]);
+  const citationPdf = byName(["citation_pdf_url", "dc.identifier", "prism.url", "wkhealth_pdf_url"])
+    .filter((value) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(value));
   const textDoi = (document.body?.innerText || location.href).match(DOI_RE)?.[0] || "";
   const pageDoiCandidate = normalizeDoi(
     first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi"])
@@ -206,6 +211,13 @@ function extractFromPage() {
   const citationTitle = first(["citation_title"]);
   const citationJournal = first(["citation_journal_title"]);
   const citationDate = first(["citation_publication_date"]);
+  const firstPage = first(["citation_firstpage", "prism.startingPage"]);
+  const lastPage = first(["citation_lastpage", "prism.endingPage"]);
+  const pages = firstPage && lastPage ? `${firstPage}-${lastPage}` : firstPage;
+  const volume = first(["citation_volume", "prism.volume"]);
+  const issue = first(["citation_issue", "prism.number", "prism.issueIdentifier"]);
+  const publisher = first(["citation_publisher", "dc.publisher", "dcterms.publisher", "prism.publicationName"])
+    || textFromJsonLd(scholarly.publisher);
   const citationAuthors = byName(["citation_author"]);
   const title = citationTitle
     || first(["dc.title", "dcterms.title", "og:title", "twitter:title"])
@@ -222,6 +234,10 @@ function extractFromPage() {
     jsonld_doi: normalizeDoi(jsonLdDoi),
     jsonld_is_scholarly: jsonLdIsScholarly,
     citation_pdf_url: citationPdf,
+    volume,
+    issue,
+    pages,
+    publisher,
   };
 
   return {
@@ -240,6 +256,10 @@ function extractFromPage() {
       || scholarly.datePublished
       || scholarly.dateCreated,
     doi: pageDoi,
+    volume,
+    issue,
+    pages,
+    publisher,
     abstract: first(["citation_abstract", "dc.description", "dcterms.abstract", "description", "og:description"])
       || scholarly.abstract
       || scholarly.description

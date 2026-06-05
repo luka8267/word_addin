@@ -88,6 +88,11 @@ function testMetaAndJsonLdExtraction() {
       meta("citation_publication_date", "2026-05-27"),
       meta("citation_doi", "https://doi.org/10.1234/example.2026"),
       meta("citation_pdf_url", "https://example.org/paper.pdf"),
+      meta("citation_volume", "12"),
+      meta("citation_issue", "3"),
+      meta("citation_firstpage", "45"),
+      meta("citation_lastpage", "67"),
+      meta("citation_publisher", "Example Publisher"),
       meta("description", "Abstract from meta."),
     ],
     scripts: [
@@ -107,6 +112,10 @@ function testMetaAndJsonLdExtraction() {
   assert.equal(result.journal, "Journal of Tests");
   assert.equal(result.year, "2026-05-27");
   assert.equal(result.doi, "10.1234/example.2026");
+  assert.equal(result.volume, "12");
+  assert.equal(result.issue, "3");
+  assert.equal(result.pages, "45-67");
+  assert.equal(result.publisher, "Example Publisher");
   assert.equal(result.isLikelyPaper, true);
   assert.equal(result.abstract, "Abstract from meta.");
   assert.deepEqual(result.pdfCandidates, [

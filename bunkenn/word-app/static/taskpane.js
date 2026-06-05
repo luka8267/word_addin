@@ -451,7 +451,15 @@
       return;
     }
 
-    citationEditTitle.textContent = `編集中: ${citation.renderedText || "引用"}`;
+    citationEditTitle.textContent = `編集中: ${citation.renderedText || "引用"}${citation.locator ? ` / 位置: ${citation.locator}` : ""}`;
+    if ((citation.paperIds || []).length > 1) {
+      const locatorHint = document.createElement("span");
+      locatorHint.className = "citation-paper";
+      locatorHint.textContent = citation.locator
+        ? "このページ番号・位置指定は、この複数文献引用全体に適用されます。"
+        : "ページ番号を付ける場合は、上の位置入力欄に p. 25 のように入力して保存してください。";
+      citationEditItems.appendChild(locatorHint);
+    }
     (citation.paperIds || []).forEach(function (paperId, index) {
       const row = document.createElement("div");
       row.className = "edit-row";

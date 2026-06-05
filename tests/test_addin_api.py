@@ -471,7 +471,12 @@ class ExtensionSaveTests(unittest.TestCase):
                     return []
                 return []
             if path == "/rest/v1/items" and kwargs.get("method") == "POST":
-                return [{"id": "item-1", **kwargs["json_body"]}]
+                body = kwargs["json_body"]
+                self.assertEqual(body["volume"], "8")
+                self.assertEqual(body["issue"], "2")
+                self.assertEqual(body["pages"], "11-19")
+                self.assertEqual(body["publisher"], "Publisher From Page")
+                return [{"id": "item-1", **body}]
             if path == "/rest/v1/attachments" and kwargs.get("method") == "POST":
                 body = kwargs["json_body"]
                 self.assertEqual(body["item_id"], "item-1")
@@ -507,6 +512,10 @@ class ExtensionSaveTests(unittest.TestCase):
                 {
                     "title": "PDF Paper",
                     "url": "https://example.org/article",
+                    "volume": "8",
+                    "issue": "2",
+                    "pages": "11-19",
+                    "publisher": "Publisher From Page",
                     "pdfCandidates": ["https://example.org/paper.pdf"],
                 },
             )
