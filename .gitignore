@@ -5,6 +5,8 @@ __pycache__/
 .DS_Store
 **/.DS_Store
 public/
+node_modules/
 bunkenn/manifest.local*.xml
 bunkenn/word-app/static/https_server.py
+bunkenn/azure-static-web-apps/api/local.settings.json
 .vercel

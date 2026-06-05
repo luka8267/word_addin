@@ -18,3 +18,8 @@ class TaskpaneStaticTests(unittest.TestCase):
         self.assertIn("const bibliographyRange = control.getRange();", source)
         self.assertIn("bibliographyRange.font.name = bibliographyFontName;", source)
         self.assertIn("bibliographyRange.font.size = bibliographyFontSize;", source)
+
+    def test_multiple_citation_editor_shows_locator_guidance(self):
+        source = TASKPANE_JS.read_text(encoding="utf-8")
+        self.assertIn("この複数文献引用全体に適用されます", source)
+        self.assertIn("ページ番号を付ける場合", source)
