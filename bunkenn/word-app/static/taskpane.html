@@ -254,17 +254,17 @@
           <option value="chicago-author-date">Chicago Author-Date</option>
         </select>
         <input id="custom-style-input" placeholder="任意CSL ID: 例 american-chemical-society" />
-        <input id="locator-input" placeholder="例: p. 25" />
+        <input id="locator-input" placeholder="ページ番号・位置: 例 p. 25 / pp. 10-12" />
         <button id="insert-citation-button" class="button primary">本文に引用を挿入</button>
         <div class="inline-row start" style="margin-top:10px;">
           <button id="load-selected-citation-button" class="toggle-button" type="button">選択中の引用を編集</button>
-          <button id="save-citation-locator-button" class="toggle-button" type="button">locatorを保存</button>
+          <button id="save-citation-locator-button" class="toggle-button" type="button">ページ番号を保存</button>
         </div>
-        <button id="add-paper-to-citation-button" class="button secondary" type="button">選択文献をこの引用に追加</button>
+        <button id="add-paper-to-citation-button" class="button secondary" type="button">この引用に文献を追加</button>
         <div id="citation-edit-panel" class="edit-panel hidden">
           <p id="citation-edit-title" class="edit-title">編集中の引用</p>
           <div id="citation-edit-items" class="list"></div>
-          <button id="delete-citation-button" class="button ghost" type="button">この引用を削除</button>
+          <button id="delete-citation-button" class="button ghost" type="button">引用を削除</button>
         </div>
       </section>
 
@@ -284,8 +284,8 @@
         </div>
         <div id="document-citations-panel" class="collapsible hidden">
           <div class="inline-row start" style="margin-bottom:10px;">
-            <button id="check-document-citations-button" class="toggle-button" type="button">チェック</button>
-            <button id="refresh-document-citations-button" class="toggle-button" type="button">更新</button>
+            <button id="check-document-citations-button" class="toggle-button" type="button">同期状態を確認</button>
+            <button id="refresh-document-citations-button" class="toggle-button" type="button">引用一覧を更新</button>
           </div>
           <div id="document-sync-issues" class="sync-issues hidden"></div>
           <button id="repair-document-citations-button" class="button secondary hidden" type="button">引用同期を修復</button>

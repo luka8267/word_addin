@@ -30,6 +30,17 @@ function link(href) {
   };
 }
 
+function linkWithAttributes(href, attributes = {}) {
+  return {
+    href,
+    textContent: attributes.textContent || "",
+    getAttribute(key) {
+      if (key === "href") return href;
+      return attributes[key] || "";
+    },
+  };
+}
+
 function script(json) {
   return { textContent: JSON.stringify(json) };
 }
@@ -158,6 +169,68 @@ function testPublisherDerivedPdfCandidates() {
     result.pdfCandidates[0],
     "https://www.sciencedirect.com/science/article/pii/S0167739X24001234/pdfft?download=true",
   );
+
+  installLocation("https://onlinelibrary.wiley.com/doi/abs/10.1002/anie.202400001");
+  installDocument({
+    title: "Wiley Article",
+    metas: [meta("citation_doi", "10.1002/anie.202400001")],
+  });
+  result = extractFromPage();
+  assert.equal(result.pdfCandidates[0], "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/anie.202400001");
+
+  installLocation("https://link.springer.com/article/10.1007/s00216-024-00001-1");
+  installDocument({
+    title: "Springer Article",
+    metas: [meta("citation_doi", "10.1007/s00216-024-00001-1")],
+  });
+  result = extractFromPage();
+  assert.equal(result.pdfCandidates[0], "https://link.springer.com/content/pdf/10.1007/s00216-024-00001-1.pdf");
+
+  installLocation("https://www.tandfonline.com/doi/full/10.1080/00000000.2024.0000001");
+  installDocument({
+    title: "Taylor Article",
+    metas: [meta("citation_doi", "10.1080/00000000.2024.0000001")],
+  });
+  result = extractFromPage();
+  assert.equal(result.pdfCandidates[0], "https://www.tandfonline.com/doi/pdf/10.1080/00000000.2024.0000001");
+}
+
+function testDoiExtractionFromLinksCanonicalAndJsonLdValue() {
+  installLocation("https://example.org/article-with-link-doi");
+  installDocument({
+    title: "DOI Link Article",
+    metas: [meta("citation_title", "DOI Link Article"), meta("citation_author", "Alice Author")],
+    links: [linkWithAttributes("https://doi.org/10.5555/link.doi")],
+  });
+  let result = extractFromPage();
+  assert.equal(result.doi, "10.5555/link.doi");
+  assert.equal(result.isLikelyPaper, true);
+
+  installLocation("https://example.org/canonical");
+  installDocument({
+    title: "Canonical DOI Article",
+    metas: [meta("citation_title", "Canonical DOI Article"), meta("citation_author", "Bob Author")],
+    links: [linkWithAttributes("https://example.org/doi/10.5555/canonical.doi", { rel: "canonical" })],
+  });
+  result = extractFromPage();
+  assert.equal(result.doi, "10.5555/canonical.doi");
+  assert.equal(result.isLikelyPaper, true);
+
+  installLocation("https://example.org/jsonld-property-value");
+  installDocument({
+    title: "JSON-LD DOI Article",
+    scripts: [
+      script({
+        "@type": "ScholarlyArticle",
+        headline: "JSON-LD DOI Article",
+        author: [{ name: "Carol Author" }],
+        identifier: [{ propertyID: "doi", value: "10.5555/jsonld.value" }],
+      }),
+    ],
+  });
+  result = extractFromPage();
+  assert.equal(result.doi, "10.5555/jsonld.value");
+  assert.equal(result.isLikelyPaper, true);
 }
 
 function testNormalizePayloadAddsRelativePdfCandidate() {
@@ -192,6 +265,18 @@ function testGenericWebPageIsNotLikelyPaper() {
   assert.equal(result.doi, "");
   assert.equal(result.isLikelyPaper, false);
   assert.equal(normalizePayload(null, { title: "Browser Title", url: "https://example.org" }).isLikelyPaper, false);
+}
+
+function testGoogleScholarSearchPageIsNotSavedAsPaper() {
+  installLocation("https://scholar.google.com/scholar?q=10.1021%2Fjp512766r");
+  installDocument({
+    title: "Google Scholar Search",
+    bodyText: "10.1021/jp512766r search results",
+  });
+
+  const result = extractFromPage();
+  assert.equal(result.doi, "10.1021/jp512766r");
+  assert.equal(result.isLikelyPaper, false);
 }
 
 function testHelpers() {
@@ -257,8 +342,10 @@ function testVersionLine() {
 testMetaAndJsonLdExtraction();
 testAcsDerivedPdfCandidates();
 testPublisherDerivedPdfCandidates();
+testDoiExtractionFromLinksCanonicalAndJsonLdValue();
 testNormalizePayloadAddsRelativePdfCandidate();
 testGenericWebPageIsNotLikelyPaper();
+testGoogleScholarSearchPageIsNotSavedAsPaper();
 testHelpers();
 testExpiredAuthDetection();
 testAuthenticatedUiState();

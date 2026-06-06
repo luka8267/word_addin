@@ -451,7 +451,8 @@
       return;
     }
 
-    citationEditTitle.textContent = `編集中: ${citation.renderedText || "引用"}${citation.locator ? ` / 位置: ${citation.locator}` : ""}`;
+    const paperCountLabel = `${(citation.paperIds || []).length}件`;
+    citationEditTitle.textContent = `編集中: ${citation.renderedText || "引用"} / 文献 ${paperCountLabel}${citation.locator ? ` / ページ番号: ${citation.locator}` : ""}`;
     if ((citation.paperIds || []).length > 1) {
       const locatorHint = document.createElement("span");
       locatorHint.className = "citation-paper";
@@ -702,7 +703,7 @@
     setEditingCitation(citation);
     locatorInput.value = citation.locator || "";
     selectionMessage.textContent = `編集中: ${citation.renderedText || "引用"}`;
-    setStatus("選択中の引用を読み込みました。locatorを編集して保存できます。");
+    setStatus("選択中の引用を読み込みました。ページ番号や引用内の文献順を編集できます。");
     return citation;
   }
 
@@ -764,7 +765,7 @@
         delete citation.locator;
       }
     });
-    setStatus("引用のlocatorを保存し、参考文献を更新しました。");
+    setStatus("引用のページ番号を保存し、参考文献を更新しました。");
   }
 
   async function addSelectedPaperToEditingCitation() {
@@ -1805,11 +1806,11 @@
 
   saveCitationLocatorButton.addEventListener("click", async function () {
     setBusy(true);
-    setStatus("引用のlocatorを保存しています。");
+    setStatus("引用のページ番号を保存しています。");
     try {
       await saveSelectedCitationLocator();
     } catch (error) {
-      setStatus(error && error.message ? error.message : "引用のlocatorを保存できませんでした。");
+      setStatus(error && error.message ? error.message : "引用のページ番号を保存できませんでした。");
     } finally {
       setBusy(false);
     }

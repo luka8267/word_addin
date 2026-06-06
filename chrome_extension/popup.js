@@ -155,8 +155,24 @@ function setAuthenticated(isAuthenticated) {
 function textFromJsonLd(value) {
   if (!value) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "object") return value.name || value.headline || value.title || value["@id"] || value.url || "";
+  if (typeof value === "object") {
+    return value.value
+      || value.name
+      || value.headline
+      || value.title
+      || value["@id"]
+      || value.url
+      || "";
+  }
   return String(value || "");
+}
+
+function firstDoiFromValues(values) {
+  for (const value of values || []) {
+    const doi = normalizeDoi(value);
+    if (doi && DOI_RE.test(doi)) return doi;
+  }
+  return "";
 }
 
 function extractJsonLdObjects() {
@@ -185,11 +201,19 @@ function extractFromPage() {
   const byName = (names) => {
     const lowered = names.map((name) => name.toLowerCase());
     return metas
-      .filter((meta) => lowered.includes((meta.getAttribute("name") || meta.getAttribute("property") || "").toLowerCase()))
+      .filter((meta) => lowered.includes(
+        (
+          meta.getAttribute("name")
+          || meta.getAttribute("property")
+          || meta.getAttribute("itemprop")
+          || ""
+        ).toLowerCase()
+      ))
       .map((meta) => meta.getAttribute("content") || "")
       .filter(Boolean);
   };
   const first = (names) => byName(names)[0] || "";
+  const allLinks = [...document.querySelectorAll("a[href], link[href]")];
   const jsonLdObjects = extractJsonLdObjects();
   const scholarly = jsonLdObjects.find((item) => {
     const type = asArray(item["@type"]).join(" ").toLowerCase();
@@ -201,7 +225,7 @@ function extractFromPage() {
   const jsonLdDoi = scholarly.doi || identifiers.match(DOI_RE)?.[0] || "";
   const jsonLdJournal = textFromJsonLd(scholarly.isPartOf) || textFromJsonLd(scholarly.publisher);
   const jsonLdAuthors = asArray(scholarly.author || scholarly.creator).map(textFromJsonLd);
-  const links = [...document.querySelectorAll("a[href], link[href]")]
+  const links = allLinks
     .filter((node) => {
       const href = node.href || node.getAttribute("href") || "";
       const label = [
@@ -209,20 +233,29 @@ function extractFromPage() {
         node.getAttribute("aria-label"),
         node.getAttribute("title"),
         node.getAttribute("type"),
+        node.getAttribute("rel"),
       ].join(" ");
       return /\.pdf(?:$|[?#])|pdf|full|pdfplus|download/i.test(href)
         || /pdf|full text|download/i.test(label);
     })
     .map((node) => node.href || node.getAttribute("href") || "");
+  const canonicalUrls = allLinks
+    .filter((node) => /canonical/i.test(node.getAttribute("rel") || ""))
+    .map((node) => node.href || node.getAttribute("href") || "");
+  const doiLinkValues = allLinks
+    .map((node) => node.href || node.getAttribute("href") || "")
+    .filter((href) => /doi\.org\/10\.|\/doi\/10\./i.test(href));
   const citationPdf = byName(["citation_pdf_url", "dc.identifier", "prism.url", "wkhealth_pdf_url"])
     .filter((value) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(value));
   const textDoi = (document.body?.innerText || location.href).match(DOI_RE)?.[0] || "";
-  const pageDoiCandidate = normalizeDoi(
-    first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi"])
-      || jsonLdDoi
-      || textDoi
-      || location.href,
-  );
+  const pageDoiCandidate = firstDoiFromValues([
+    first(["citation_doi", "dc.identifier", "dc.identifier.doi", "prism.doi", "bepress_citation_doi"]),
+    jsonLdDoi,
+    ...doiLinkValues,
+    ...canonicalUrls,
+    textDoi,
+    location.href,
+  ]);
   const pageDoi = DOI_RE.test(pageDoiCandidate) ? pageDoiCandidate : "";
   const derivedPdfCandidates = [];
   if (location.hostname === "pubs.acs.org" && pageDoi) {
@@ -237,6 +270,22 @@ function extractFromPage() {
     const piiMatch = location.pathname.match(/\/pii\/([A-Z0-9]+)/i);
     if (piiMatch) derivedPdfCandidates.push(`${location.origin}/science/article/pii/${piiMatch[1]}/pdfft?download=true`);
   }
+  if (/onlinelibrary\.wiley\.com$/i.test(location.hostname) && pageDoi) {
+    derivedPdfCandidates.push(`${location.origin}/doi/pdfdirect/${pageDoi}`);
+    derivedPdfCandidates.push(`${location.origin}/doi/pdf/${pageDoi}`);
+  }
+  if (/link\.springer\.com$/i.test(location.hostname) && pageDoi) {
+    derivedPdfCandidates.push(`${location.origin}/content/pdf/${pageDoi}.pdf`);
+  }
+  if (/tandfonline\.com$/i.test(location.hostname) && pageDoi) {
+    derivedPdfCandidates.push(`${location.origin}/doi/pdf/${pageDoi}`);
+  }
+  if (/journals\.plos\.org$/i.test(location.hostname)) {
+    const articleId = new URLSearchParams(location.search).get("id");
+    if (articleId) derivedPdfCandidates.push(`${location.origin}${location.pathname}?id=${articleId}&type=printable`);
+  }
+  const isGoogleScholarSearch = /(^|\.)scholar\.google\./i.test(location.hostname)
+    && /\/scholar\b/i.test(location.pathname);
   const citationTitle = first(["citation_title", "dc.title", "dcterms.title"]);
   const citationJournal = first(["citation_journal_title", "prism.publicationName"]);
   const citationDate = first(["citation_publication_date", "citation_date", "citation_year", "prism.publicationDate", "dc.date", "dcterms.issued"]);
@@ -301,7 +350,7 @@ function extractFromPage() {
       url: location.href,
       doi: pageDoi,
       metadata,
-    }),
+    }) && !isGoogleScholarSearch,
     metadata,
   };
 }

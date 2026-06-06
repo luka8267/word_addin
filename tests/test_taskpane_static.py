@@ -23,3 +23,10 @@ class TaskpaneStaticTests(unittest.TestCase):
         source = TASKPANE_JS.read_text(encoding="utf-8")
         self.assertIn("この複数文献引用全体に適用されます", source)
         self.assertIn("ページ番号を付ける場合", source)
+        self.assertIn("引用のページ番号を保存し、参考文献を更新しました。", source)
+
+    def test_taskpane_uses_user_facing_page_number_label(self):
+        html = (TASKPANE_JS.parent / "taskpane.html").read_text(encoding="utf-8")
+        self.assertIn("ページ番号を保存", html)
+        self.assertIn("ページ番号・位置", html)
+        self.assertNotIn(">locatorを保存<", html)
