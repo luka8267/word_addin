@@ -84,6 +84,7 @@ function testMetaAndJsonLdExtraction() {
       meta("citation_title", "Meta Title"),
       meta("citation_author", "Alice Author"),
       meta("citation_author", "Bob Author"),
+      meta("citation_authors", "Carol Author; Dave Author"),
       meta("citation_journal_title", "Journal of Tests"),
       meta("citation_publication_date", "2026-05-27"),
       meta("citation_doi", "https://doi.org/10.1234/example.2026"),
@@ -108,7 +109,7 @@ function testMetaAndJsonLdExtraction() {
   const result = extractFromPage();
   assert.equal(result.url, "https://example.org/articles/123");
   assert.equal(result.title, "Meta Title");
-  assert.deepEqual(result.authors, ["Alice Author", "Bob Author"]);
+  assert.deepEqual(result.authors, ["Alice Author", "Bob Author", "Carol Author", "Dave Author"]);
   assert.equal(result.journal, "Journal of Tests");
   assert.equal(result.year, "2026-05-27");
   assert.equal(result.doi, "10.1234/example.2026");
@@ -136,6 +137,27 @@ function testAcsDerivedPdfCandidates() {
   assert.equal(result.isLikelyPaper, true);
   assert.equal(result.pdfCandidates[0], "https://pubs.acs.org/doi/pdfplus/10.1021/jp512766r");
   assert.equal(result.pdfCandidates[1], "https://pubs.acs.org/doi/pdf/10.1021/jp512766r");
+}
+
+function testPublisherDerivedPdfCandidates() {
+  installLocation("https://www.nature.com/articles/s41586-020-2649-2");
+  installDocument({
+    title: "Nature Article",
+    metas: [meta("citation_doi", "10.1038/s41586-020-2649-2")],
+  });
+  let result = extractFromPage();
+  assert.equal(result.pdfCandidates[0], "https://www.nature.com/articles/s41586-020-2649-2.pdf");
+
+  installLocation("https://www.sciencedirect.com/science/article/pii/S0167739X24001234");
+  installDocument({
+    title: "ScienceDirect Article",
+    metas: [meta("citation_doi", "10.1016/j.example.2024.01.001")],
+  });
+  result = extractFromPage();
+  assert.equal(
+    result.pdfCandidates[0],
+    "https://www.sciencedirect.com/science/article/pii/S0167739X24001234/pdfft?download=true",
+  );
 }
 
 function testNormalizePayloadAddsRelativePdfCandidate() {
@@ -234,6 +256,7 @@ function testVersionLine() {
 
 testMetaAndJsonLdExtraction();
 testAcsDerivedPdfCandidates();
+testPublisherDerivedPdfCandidates();
 testNormalizePayloadAddsRelativePdfCandidate();
 testGenericWebPageIsNotLikelyPaper();
 testHelpers();

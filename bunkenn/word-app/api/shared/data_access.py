@@ -217,6 +217,28 @@ def merge_extension_metadata(source: dict, metadata: dict) -> dict:
     return merged
 
 
+def extension_missing_metadata_fields(source: dict) -> list[str]:
+    labels = []
+    checks = (
+        ("doi", "DOI"),
+        ("authors", "著者"),
+        ("journal", "雑誌名"),
+        ("year", "年"),
+        ("volume", "巻"),
+        ("issue", "号"),
+        ("pages", "ページ"),
+    )
+    for field, label in checks:
+        value = source.get(field)
+        if isinstance(value, list):
+            missing = not any(str(item or "").strip() for item in value)
+        else:
+            missing = not str(value or "").strip()
+        if missing:
+            labels.append(label)
+    return labels
+
+
 def extension_source_from_payload(payload: dict) -> dict:
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
     source_url = clean_extension_text(payload.get("url") or metadata.get("url"), 2000)
@@ -1018,6 +1040,7 @@ def save_extension_paper(context: dict[str, str], payload: dict) -> dict:
         "paperId": str(item.get("id") or ""),
         "title": item.get("title") or source.get("title") or "",
         "doi": item.get("doi") or source.get("doi") or "",
+        "missingMetadata": extension_missing_metadata_fields(source),
         "pdfCandidates": candidates,
         "pdf": pdf_result,
     }

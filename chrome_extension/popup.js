@@ -68,6 +68,17 @@ function unique(values) {
   return [...new Set(values.filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
 }
 
+function splitPersonList(values) {
+  return unique(asArray(values).flatMap((value) => {
+    const text = String(value || "").trim();
+    if (!text) return [];
+    return text
+      .split(/\s*(?:;|\||\n|\band\b)\s*/i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }));
+}
+
 function isLikelyPaperPayload(value) {
   const payload = value && typeof value === "object" ? value : {};
   const metadata = payload.metadata && typeof payload.metadata === "object" ? payload.metadata : {};
@@ -191,8 +202,18 @@ function extractFromPage() {
   const jsonLdJournal = textFromJsonLd(scholarly.isPartOf) || textFromJsonLd(scholarly.publisher);
   const jsonLdAuthors = asArray(scholarly.author || scholarly.creator).map(textFromJsonLd);
   const links = [...document.querySelectorAll("a[href], link[href]")]
-    .map((node) => node.href || node.getAttribute("href") || "")
-    .filter((href) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(href));
+    .filter((node) => {
+      const href = node.href || node.getAttribute("href") || "";
+      const label = [
+        node.textContent,
+        node.getAttribute("aria-label"),
+        node.getAttribute("title"),
+        node.getAttribute("type"),
+      ].join(" ");
+      return /\.pdf(?:$|[?#])|pdf|full|pdfplus|download/i.test(href)
+        || /pdf|full text|download/i.test(label);
+    })
+    .map((node) => node.href || node.getAttribute("href") || "");
   const citationPdf = byName(["citation_pdf_url", "dc.identifier", "prism.url", "wkhealth_pdf_url"])
     .filter((value) => /\.pdf(?:$|[?#])|pdf|full|pdfplus/i.test(value));
   const textDoi = (document.body?.innerText || location.href).match(DOI_RE)?.[0] || "";
@@ -208,17 +229,28 @@ function extractFromPage() {
     derivedPdfCandidates.push(`https://pubs.acs.org/doi/pdfplus/${pageDoi}`);
     derivedPdfCandidates.push(`https://pubs.acs.org/doi/pdf/${pageDoi}`);
   }
-  const citationTitle = first(["citation_title"]);
-  const citationJournal = first(["citation_journal_title"]);
-  const citationDate = first(["citation_publication_date"]);
+  if (/nature\.com$/i.test(location.hostname)) {
+    const articleMatch = location.pathname.match(/\/articles\/([^/?#]+)/i);
+    if (articleMatch) derivedPdfCandidates.push(`${location.origin}/articles/${articleMatch[1]}.pdf`);
+  }
+  if (/sciencedirect\.com$/i.test(location.hostname)) {
+    const piiMatch = location.pathname.match(/\/pii\/([A-Z0-9]+)/i);
+    if (piiMatch) derivedPdfCandidates.push(`${location.origin}/science/article/pii/${piiMatch[1]}/pdfft?download=true`);
+  }
+  const citationTitle = first(["citation_title", "dc.title", "dcterms.title"]);
+  const citationJournal = first(["citation_journal_title", "prism.publicationName"]);
+  const citationDate = first(["citation_publication_date", "citation_date", "citation_year", "prism.publicationDate", "dc.date", "dcterms.issued"]);
   const firstPage = first(["citation_firstpage", "prism.startingPage"]);
   const lastPage = first(["citation_lastpage", "prism.endingPage"]);
-  const pages = firstPage && lastPage ? `${firstPage}-${lastPage}` : firstPage;
+  const pages = first(["citation_pages", "prism.pageRange"]) || (firstPage && lastPage ? `${firstPage}-${lastPage}` : firstPage);
   const volume = first(["citation_volume", "prism.volume"]);
-  const issue = first(["citation_issue", "prism.number", "prism.issueIdentifier"]);
-  const publisher = first(["citation_publisher", "dc.publisher", "dcterms.publisher", "prism.publicationName"])
+  const issue = first(["citation_issue", "prism.number", "prism.issueIdentifier", "prism.issueNumber"]);
+  const publisher = first(["citation_publisher", "dc.publisher", "dcterms.publisher"])
     || textFromJsonLd(scholarly.publisher);
-  const citationAuthors = byName(["citation_author"]);
+  const citationAuthors = splitPersonList([
+    ...byName(["citation_author"]),
+    ...byName(["citation_authors"]),
+  ]);
   const title = citationTitle
     || first(["dc.title", "dcterms.title", "og:title", "twitter:title"])
     || scholarly.headline
@@ -245,12 +277,12 @@ function extractFromPage() {
     title: String(title || "").trim(),
     authors: unique([
       ...citationAuthors,
-      ...byName(["dc.creator", "dcterms.creator", "article:author"]),
+      ...splitPersonList(byName(["dc.creator", "dcterms.creator", "article:author", "parsely-author"])),
       ...jsonLdAuthors,
     ]),
     journal: citationJournal
-      || first(["prism.publicationName", "dc.source", "dcterms.source", "og:site_name"])
-      || jsonLdJournal,
+      || jsonLdJournal
+      || first(["citation_journal_abbrev", "dc.source", "dcterms.source", "og:site_name"]),
     year: citationDate
       || first(["citation_online_date", "dc.date", "dcterms.issued", "article:published_time"])
       || scholarly.datePublished
@@ -468,6 +500,9 @@ async function save(retried = false) {
     return;
   }
   const lines = [result.duplicate ? "すでに bunken に登録されています。" : "bunken に保存しました。"];
+  if (Array.isArray(result.missingMetadata) && result.missingMetadata.length) {
+    lines.push(`メタデータ補完待ち: ${result.missingMetadata.join(" / ")}`);
+  }
   if (result.pdf?.saved) lines.push(`PDFも保存しました: ${result.pdf.storagePath}`);
   else if (result.pdfCandidates?.length) {
     lastPdfCandidate = result.pdfCandidates[0];

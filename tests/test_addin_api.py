@@ -336,6 +336,7 @@ class ExtensionSaveTests(unittest.TestCase):
         self.assertEqual(result["doi"], "10.1000/example")
         self.assertEqual(result["pdfCandidates"], ["https://example.org/paper.pdf"])
         self.assertEqual(result["pdf"]["reason"], "not_pdf")
+        self.assertEqual(result["missingMetadata"], ["巻", "号", "ページ"])
         self.assertIn("/rest/v1/items", [path for path, _ in calls])
 
     def test_extension_save_enriches_title_only_payload_from_doi_metadata(self):
