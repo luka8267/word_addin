@@ -3,6 +3,7 @@ const {
   buildDerivedPdfCandidates,
   compareVersions,
   extractFromPage,
+  isBlockedOrErrorPageTitle,
   isLikelyPaperPayload,
   normalizeDoi,
   normalizePayload,
@@ -279,6 +280,26 @@ function testGoogleScholarSearchPageIsNotSavedAsPaper() {
   assert.equal(result.isLikelyPaper, false);
 }
 
+function testBlockedOrErrorPagesAreNotSavedAsPaper() {
+  installLocation("https://onlinelibrary.wiley.com/doi/10.1002/anie.202400001");
+  installDocument({
+    title: "Just a moment...",
+    bodyText: "10.1002/anie.202400001",
+  });
+  let result = extractFromPage();
+  assert.equal(result.doi, "10.1002/anie.202400001");
+  assert.equal(result.isLikelyPaper, false);
+
+  installLocation("https://link.springer.com/article/10.1007/s00216-024-00001-1");
+  installDocument({
+    title: "Page Unavailable | Springer Nature Link",
+    bodyText: "10.1007/s00216-024-00001-1",
+  });
+  result = extractFromPage();
+  assert.equal(result.doi, "10.1007/s00216-024-00001-1");
+  assert.equal(result.isLikelyPaper, false);
+}
+
 function testHelpers() {
   assert.equal(normalizeDoi("https://dx.doi.org/10.5555/abc."), "10.5555/abc");
   assert.equal(isLikelyPaperPayload({ url: "https://doi.org/10.5555/abc" }), true);
@@ -293,6 +314,9 @@ function testHelpers() {
     true,
   );
   assert.equal(compareVersions("0.2.10", "0.2.4") > 0, true);
+  assert.equal(isBlockedOrErrorPageTitle("Just a moment..."), true);
+  assert.equal(isBlockedOrErrorPageTitle("Page not found"), true);
+  assert.equal(isBlockedOrErrorPageTitle("Array programming with NumPy"), false);
   assert.deepEqual(
     buildDerivedPdfCandidates(
       { pdfCandidates: ["https://pubs.acs.org/doi/pdf/10.1021/jp512766r"] },
@@ -346,6 +370,7 @@ testDoiExtractionFromLinksCanonicalAndJsonLdValue();
 testNormalizePayloadAddsRelativePdfCandidate();
 testGenericWebPageIsNotLikelyPaper();
 testGoogleScholarSearchPageIsNotSavedAsPaper();
+testBlockedOrErrorPagesAreNotSavedAsPaper();
 testHelpers();
 testExpiredAuthDetection();
 testAuthenticatedUiState();

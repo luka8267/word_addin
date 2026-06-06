@@ -175,6 +175,11 @@ function firstDoiFromValues(values) {
   return "";
 }
 
+function isBlockedOrErrorPageTitle(value) {
+  return /^(just a moment|checking your browser|page not found|page unavailable|access denied|forbidden|error)\b/i
+    .test(String(value || "").trim());
+}
+
 function extractJsonLdObjects() {
   const roots = [];
   for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
@@ -305,6 +310,7 @@ function extractFromPage() {
     || scholarly.headline
     || scholarly.name
     || document.title;
+  const isBlockedOrErrorPage = isBlockedOrErrorPageTitle(title || document.title);
   const metadata = {
     title,
     citation_title: citationTitle,
@@ -350,7 +356,7 @@ function extractFromPage() {
       url: location.href,
       doi: pageDoi,
       metadata,
-    }) && !isGoogleScholarSearch,
+    }) && !isGoogleScholarSearch && !isBlockedOrErrorPage,
     metadata,
   };
 }
@@ -595,6 +601,7 @@ if (typeof module !== "undefined" && module.exports) {
     normalizePayload,
     renderVersionLine,
     setAuthenticated,
+    isBlockedOrErrorPageTitle,
     isLikelyPaperPayload,
     shouldRefreshAuth,
   };
