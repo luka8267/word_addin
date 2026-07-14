@@ -19,6 +19,21 @@ class TaskpaneStaticTests(unittest.TestCase):
         self.assertIn("bibliographyRange.font.name = bibliographyFontName;", source)
         self.assertIn("bibliographyRange.font.size = bibliographyFontSize;", source)
 
+    def test_consecutive_numeric_citations_use_one_compact_range_label(self):
+        source = TASKPANE_JS.read_text(encoding="utf-8")
+        self.assertIn("const rangeLength = range[1] - range[0] + 1;", source)
+        self.assertIn("if (rangeLength >= 3)", source)
+        self.assertIn('return `${range[0]}-${range[1]})`;', source)
+        self.assertIn('return `${range[0]})${range[1]})`;', source)
+        self.assertNotIn('`${range[0]})-${range[1]})`', source)
+
+    def test_superscript_citations_keep_ascii_digits_and_use_word_formatting(self):
+        source = TASKPANE_JS.read_text(encoding="utf-8")
+        self.assertIn("control.insertText(referenceLabel, Word.InsertLocation.replace);", source)
+        self.assertIn("const citationRange = control.getRange();", source)
+        self.assertIn("citationRange.font.superscript = shouldSuperscriptStyle(style);", source)
+        self.assertNotIn("control.insertText(displayLabel, Word.InsertLocation.replace);", source)
+
     def test_multiple_citation_editor_shows_locator_guidance(self):
         source = TASKPANE_JS.read_text(encoding="utf-8")
         self.assertIn("この複数文献引用全体に適用されます", source)

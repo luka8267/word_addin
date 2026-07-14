@@ -1047,15 +1047,25 @@
     }
     ranges.push([start, end]);
 
+    if (!["ieee", "acs", "nature"].includes(activeStyle)) {
+      return ranges.map(function (range) {
+        const rangeLength = range[1] - range[0] + 1;
+        if (rangeLength >= 3) {
+          return `${range[0]}-${range[1]})`;
+        }
+        if (rangeLength === 2) {
+          return `${range[0]})${range[1]})`;
+        }
+        return `${range[0]})`;
+      }).join("");
+    }
+
     return ranges.map(function (range) {
       if (activeStyle === "ieee") {
         return range[0] === range[1] ? `[${range[0]}]` : `[${range[0]}]-[${range[1]}]`;
       }
-      if (activeStyle === "acs" || activeStyle === "nature") {
-        return range[0] === range[1] ? `${range[0]}` : `${range[0]}-${range[1]}`;
-      }
-      return range[0] === range[1] ? `${range[0]})` : `${range[0]})-${range[1]})`;
-    }).join(activeStyle === "ieee" ? "," : ",");
+      return range[0] === range[1] ? `${range[0]}` : `${range[0]}-${range[1]}`;
+    }).join(",");
   }
 
   function toSuperscriptText(value) {
@@ -1273,10 +1283,9 @@
   }
 
   function applyCitationFormatting(control, referenceLabel, style) {
-    const displayLabel = shouldSuperscriptStyle(style)
-      ? toSuperscriptText(referenceLabel)
-      : referenceLabel;
-    control.insertText(displayLabel, Word.InsertLocation.replace);
+    control.insertText(referenceLabel, Word.InsertLocation.replace);
+    const citationRange = control.getRange();
+    citationRange.font.superscript = shouldSuperscriptStyle(style);
   }
 
   async function refreshCitationsForStyle(documentState) {
