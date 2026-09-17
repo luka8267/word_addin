@@ -1272,10 +1272,12 @@
   }
 
   function buildBibliographyHtml(title, entries) {
+    // Prevent Word's default paragraph margins from adding gaps to the list.
+    const paragraphStyle = "margin-top:0pt;margin-bottom:0pt;";
     const entryHtml = (entries || []).map(function (entry) {
-      return `<p>${preserveSubSupHtml(entry)}</p>`;
+      return `<p style="${paragraphStyle}">${preserveSubSupHtml(entry)}</p>`;
     }).join("");
-    return `<p><strong>${escapeHtml(title)}</strong></p>${entryHtml || "<p></p>"}`;
+    return `<p style="${paragraphStyle}"><strong>${escapeHtml(title)}</strong></p>${entryHtml || `<p style="${paragraphStyle}"></p>`}`;
   }
 
   function shouldSuperscriptStyle(style) {
