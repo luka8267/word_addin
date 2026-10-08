@@ -153,6 +153,7 @@
       .edit-row { display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
       .edit-row:first-of-type { border-top: none; }
       .edit-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+      .edit-row .citation-paper { margin-top: 0; font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
       .button { width: 100%; min-height: 34px; padding: 9px 11px; border-radius: 7px; border: none; font-weight: 700; cursor: pointer; }
       .button.primary { background: var(--primary); color: #fff; }
       .button.secondary { border: 1px solid #f3d37a; background: var(--secondary); color: var(--secondary-text); }
@@ -212,6 +213,12 @@
         </div>
       </section>
 
+      <section id="citation-edit-panel" class="card edit-panel hidden" aria-labelledby="citation-edit-title">
+        <h2 id="citation-edit-title" class="edit-title">選択中の引用</h2>
+        <div id="citation-edit-items" class="list"></div>
+        <button id="delete-citation-button" class="button ghost" type="button">引用全体を削除</button>
+      </section>
+
       <section id="search-card" class="card hidden">
         <div class="inline-row start">
           <div>
@@ -261,11 +268,6 @@
           <button id="save-citation-locator-button" class="toggle-button" type="button">ページ番号を保存</button>
         </div>
         <button id="add-paper-to-citation-button" class="button secondary" type="button">この引用に文献を追加</button>
-        <div id="citation-edit-panel" class="edit-panel hidden">
-          <p id="citation-edit-title" class="edit-title">編集中の引用</p>
-          <div id="citation-edit-items" class="list"></div>
-          <button id="delete-citation-button" class="button ghost" type="button">引用を削除</button>
-        </div>
       </section>
 
       <section id="bibliography-card" class="card hidden">
@@ -295,6 +297,6 @@
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=title-display-v2"></script>
+    <script src="./taskpane.js?v=citation-editor-v1"></script>
   </body>
 </html>

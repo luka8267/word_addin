@@ -22,6 +22,8 @@
     isReady: false,
     isBusy: false,
     searchTimerId: null,
+    citationSelectionTimerId: null,
+    citationSelectionVersion: 0,
     selectedPaper: null,
     results: [],
     libraryResults: [],
@@ -169,6 +171,7 @@
     readyBadge.textContent = isReady ? "Ready" : "Loading";
     readyBadge.classList.toggle("ready", isReady);
     updateDisabledState();
+    if (isReady) scheduleSelectedCitationEdit();
   }
 
   function setBusy(isBusy) {
@@ -189,6 +192,7 @@
     userMessage.textContent = isAuthenticated
       ? `${state.auth.username || ""}${state.auth.email ? ` (${state.auth.email})` : ""}`
       : "";
+    renderCitationEditPanel();
     updateDisabledState();
   }
 
@@ -450,6 +454,9 @@
     state.editingCitationControlId = "";
     state.editingCitation = null;
     locatorInput.value = "";
+    selectionMessage.textContent = state.selectedPaper
+      ? selectedPaperMessage(state.selectedPaper)
+      : "文献を選ぶと本文に引用を挿入できます。";
     renderCitationEditPanel();
     updateDisabledState();
   }
@@ -466,8 +473,9 @@
   function renderCitationEditPanel() {
     citationEditItems.innerHTML = "";
     const citation = state.editingCitation;
-    citationEditPanel.classList.toggle("hidden", !citation);
-    if (!citation) {
+    const visible = !!(citation && state.auth && state.auth.accessToken);
+    citationEditPanel.classList.toggle("hidden", !visible);
+    if (!visible) {
       return;
     }
 
@@ -478,16 +486,26 @@
       locatorHint.className = "citation-paper";
       locatorHint.textContent = citation.locator
         ? "このページ番号・位置指定は、この複数文献引用全体に適用されます。"
-        : "ページ番号を付ける場合は、上の位置入力欄に p. 25 のように入力して保存してください。";
+        : "ページ番号を付ける場合は、位置入力欄に p. 25 のように入力して保存してください。";
       citationEditItems.appendChild(locatorHint);
     }
-    (citation.paperIds || []).forEach(function (paperId, index) {
+    const numeric = isNumericStyle(citation.style || getCurrentStyle());
+    const rows = (citation.paperIds || []).map(function (paperId, index) {
+      return { paperId, index, referenceNumber: (citation.referenceNumbers || [])[index] };
+    });
+    if (numeric) {
+      rows.sort(function (left, right) { return (left.referenceNumber || 0) - (right.referenceNumber || 0); });
+    }
+    rows.forEach(function ({ paperId, index, referenceNumber }) {
       const row = document.createElement("div");
       row.className = "edit-row";
 
       const label = document.createElement("span");
       label.className = "citation-paper";
-      label.textContent = paperLabelForId(paperId);
+      const paper = findKnownPaper(paperId);
+      const title = paper ? paperTitleText(paper.title) : "文献情報を取得できませんでした";
+      const numberLabel = numeric && referenceNumber ? `${formatReferenceLabel(referenceNumber)} ` : "";
+      label.textContent = `${numberLabel}${title}`;
       row.appendChild(label);
 
       const actions = document.createElement("div");
@@ -509,7 +527,7 @@
           setBusy(false);
         }
       });
-      actions.appendChild(upButton);
+      if (!numeric) actions.appendChild(upButton);
 
       const downButton = document.createElement("button");
       downButton.type = "button";
@@ -527,13 +545,14 @@
           setBusy(false);
         }
       });
-      actions.appendChild(downButton);
+      if (!numeric) actions.appendChild(downButton);
 
       const removeButton = document.createElement("button");
       removeButton.type = "button";
       removeButton.className = "toggle-button";
-      removeButton.textContent = "外す";
-      removeButton.disabled = state.isBusy;
+      removeButton.textContent = "引用から外す";
+      removeButton.setAttribute("aria-label", `${numberLabel}${title}を引用から外す`);
+      removeButton.disabled = state.isBusy || rows.length <= 1;
       removeButton.addEventListener("click", async function () {
         setBusy(true);
         setStatus("引用から文献を外しています。");
@@ -693,24 +712,37 @@
     await Word.run(async function (context) {
       const selection = context.document.getSelection();
       const parentControl = selection.parentContentControlOrNullObject;
+      const containedControls = selection.contentControls;
       context.load(parentControl, "id,tag");
+      context.load(containedControls, "items/id,items/tag");
       await context.sync();
       if (!parentControl.isNullObject && parentControl.tag === CITATION_TAG) {
         selectedControlId = String(parentControl.id);
+      } else {
+        const citations = containedControls.items.filter(function (control) { return control.tag === CITATION_TAG; });
+        if (citations.length === 1) selectedControlId = String(citations[0].id);
       }
     });
     return selectedControlId;
   }
 
-  async function loadSelectedCitationForEditing() {
+  async function loadSelectedCitationForEditing(options = {}) {
+    const version = options.version ?? ++state.citationSelectionVersion;
+    const isCurrent = function () {
+      return version === state.citationSelectionVersion && (!options.automatic || (!state.isBusy && state.auth && state.auth.accessToken));
+    };
     const controlId = await getSelectedCitationControlId();
+    if (!isCurrent()) return null;
     if (!controlId) {
-      clearEditingCitation();
-      setStatus("本文中の編集したい引用を選択してください。");
+      if (state.editingCitation) clearEditingCitation();
+      if (!options.automatic) setStatus("本文中の編集したい引用を選択してください。");
       return null;
     }
+    if (options.automatic && controlId === state.editingCitationControlId) return state.editingCitation;
+    if (options.automatic && state.editingCitation) clearEditingCitation();
 
     const documentState = await loadDocumentState();
+    if (!isCurrent()) return null;
     const citation = (documentState.citations || []).find(function (item) {
       return String(item.controlId) === controlId;
     });
@@ -720,11 +752,54 @@
       return null;
     }
 
+    if ((citation.paperIds || []).some(function (paperId) { return !findKnownPaper(paperId); })) {
+      try {
+        await loadDocumentCitationSummary(documentState);
+      } catch (error) {
+        console.warn("bunken citation titles could not be loaded", error);
+      }
+    }
+    if (!isCurrent()) return null;
     setEditingCitation(citation);
     locatorInput.value = citation.locator || "";
     selectionMessage.textContent = `編集中: ${citation.renderedText || "引用"}`;
-    setStatus("選択中の引用を読み込みました。ページ番号や引用内の文献順を編集できます。");
+    setStatus("選択中の引用を読み込みました。");
+    if (citationEditPanel.scrollIntoView) citationEditPanel.scrollIntoView({ block: "nearest" });
     return citation;
+  }
+
+  function scheduleSelectedCitationEdit() {
+    const version = ++state.citationSelectionVersion;
+    window.clearTimeout(state.citationSelectionTimerId);
+    if (!state.isReady || state.isBusy || !(state.auth && state.auth.accessToken)) return;
+    state.citationSelectionTimerId = window.setTimeout(async function () {
+      try {
+        await loadSelectedCitationForEditing({ automatic: true, version });
+      } catch (error) {
+        if (version === state.citationSelectionVersion && !state.isBusy) {
+          setStatus(formatOfficeError(error, "選択中の引用を読み込めませんでした。「選択中の引用を編集」で再度お試しください。"));
+        }
+      }
+    }, 250);
+  }
+
+  function registerCitationSelectionHandler() {
+    if (!Office.context.document.addHandlerAsync) return;
+    try {
+      Office.context.document.addHandlerAsync(
+        Office.EventType.DocumentSelectionChanged,
+        scheduleSelectedCitationEdit,
+        function (result) {
+          if (result.status === Office.AsyncResultStatus.Succeeded) {
+            scheduleSelectedCitationEdit();
+          } else {
+            console.warn("bunken citation selection handler unavailable", result.error);
+          }
+        }
+      );
+    } catch (error) {
+      console.warn("bunken citation selection handler unavailable", error);
+    }
   }
 
   function updateEditingCitationFromDocumentState(documentState) {
@@ -1687,6 +1762,8 @@
   });
 
   logoutButton.addEventListener("click", function () {
+    ++state.citationSelectionVersion;
+    window.clearTimeout(state.citationSelectionTimerId);
     saveAuthState(null);
     state.results = [];
     state.documentCitations = [];
@@ -1705,6 +1782,7 @@
     renderDocumentCitations();
     renderDocumentSyncIssues();
     authMessage.textContent = "bunkenn のアカウントでログインすると、その人の文献だけが表示されます。";
+    renderCitationEditPanel();
     selectionMessage.textContent = "文献を選ぶと本文に引用を挿入できます。";
     setStatus("ログアウトしました。");
   });
@@ -1991,6 +2069,7 @@
       setStatus("このアドインは Word 専用です。");
       return;
     }
+    registerCitationSelectionHandler();
     renderAuthState();
     renderLibraryState();
     try {
