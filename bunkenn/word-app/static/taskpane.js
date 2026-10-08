@@ -285,14 +285,33 @@
       state.hasLoadedDocumentCitations = true;
       setStatus(
         syncResult && syncResult.synced === false
-          ? `引用を挿入しました（DB同期は未完了）: ${paper.title}`
-          : `引用を挿入しました: ${paper.title}`
+          ? `引用を挿入しました（DB同期は未完了）: ${paperTitleText(paper.title)}`
+          : `引用を挿入しました: ${paperTitleText(paper.title)}`
       );
     } catch (error) {
       setStatus(formatOfficeError(error, "引用の挿入に失敗しました。"));
     } finally {
       setBusy(false);
     }
+  }
+
+  function normalizeChemicalBondText(value) {
+    // Some publisher metadata uses a private-use glyph instead of a bond dash.
+    return String(value ?? "").replace(/(\b[A-Z][a-z]?)\uf8ff(?=[A-Z][a-z]?\b)/g, "$1-");
+  }
+
+  function paperTitleText(value) {
+    let text = String(value ?? "");
+    // Publisher titles can contain HTML or HTML-encoded markup. Never insert it into the live DOM.
+    for (let pass = 0; pass < 2; pass += 1) {
+      const template = document.createElement("template");
+      template.innerHTML = text;
+      template.content.querySelectorAll("script, style").forEach((node) => node.remove());
+      const decoded = template.content.textContent;
+      if (decoded === text) break;
+      text = decoded;
+    }
+    return normalizeChemicalBondText(text);
   }
 
   function renderPaperList(container, papers) {
@@ -311,7 +330,7 @@
         <span class="paper-pills"></span>
       `;
       const nodes = button.querySelectorAll(".paper-title, .paper-meta, .paper-pills");
-      nodes[0].textContent = paper.title;
+      nodes[0].textContent = paperTitleText(paper.title);
       nodes[1].textContent = paper.authors;
       nodes[2].textContent = formatPaperMetadataLine(paper);
       nodes[3].appendChild(createPill(paper.doi ? "DOI" : "DOIなし", paper.doi ? "accent" : "danger"));
@@ -373,7 +392,7 @@
 
   function selectedPaperMessage(paper) {
     const doiPart = paper.doi ? ` / DOI: ${paper.doi}` : "";
-    return `選択中: ${paper.title}${doiPart}`;
+    return `選択中: ${paperTitleText(paper.title)}${doiPart}`;
   }
 
   function renderResults() {
@@ -423,7 +442,8 @@
       return String(paperId || "");
     }
     const metadata = formatPaperMetadataLine(paper);
-    return metadata ? `${paper.title} / ${metadata}` : paper.title;
+    const title = paperTitleText(paper.title);
+    return metadata ? `${title} / ${metadata}` : title;
   }
 
   function clearEditingCitation() {
@@ -583,7 +603,7 @@
         const locator = citationItem.locator ? ` ${citationItem.locator}` : "";
         const metadata = paper.title ? formatPaperMetadataLine(paper) : "";
         paperLine.textContent = paper.title
-          ? `${paper.title}${locator}${metadata ? ` / ${metadata}` : ""}`
+          ? `${paperTitleText(paper.title)}${locator}${metadata ? ` / ${metadata}` : ""}`
           : `${citationItem.paperId}${locator}`;
         item.appendChild(paperLine);
       });
@@ -1259,7 +1279,7 @@
 
   function preserveSubSupHtml(value) {
     const tokens = [];
-    const tokenized = String(value || "").replace(/<\/?(sub|sup)>/gi, function (tag) {
+    const tokenized = normalizeChemicalBondText(value).replace(/<\/?(sub|sup)>/gi, function (tag) {
       const token = `__BUNKEN_INLINE_TAG_${tokens.length}__`;
       tokens.push(tag.toLowerCase());
       return token;
