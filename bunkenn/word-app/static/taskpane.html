@@ -76,7 +76,7 @@
         overflow: hidden;
       }
       h2 { margin: 0 0 9px; font-size: 15px; line-height: 1.3; }
-      input, select {
+      input, select, textarea {
         width: 100%;
         padding: 9px 10px;
         border-radius: 7px;
@@ -87,7 +87,7 @@
         margin-bottom: 8px;
         outline: none;
       }
-      input:focus, select:focus {
+      input:focus, select:focus, textarea:focus {
         border-color: #80c9bd;
         box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
       }
@@ -183,6 +183,13 @@
         .inline-row.start { display: grid; grid-template-columns: 1fr; }
         .toggle-button { width: 100%; }
       }
+      .style-editor { margin: 10px 0; padding: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; }
+      .style-editor label { display: block; font-size: 12px; margin-bottom: 5px; }
+      .style-editor textarea { resize: vertical; min-height: 70px; font-family: inherit; }
+      .style-editor input[type="checkbox"] { width: auto; margin-right: 6px; }
+      .style-preview { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+      .style-help { overflow-wrap: anywhere; }
+      details > summary { cursor: pointer; font-size: 12px; margin: 8px 0; }
     </style>
   </head>
   <body>
@@ -251,6 +258,7 @@
       <section id="citation-card" class="card hidden">
         <h2>引用挿入</h2>
         <p id="selection-message" class="message">文献を選ぶと本文に引用を挿入できます。</p>
+        <label for="style-select">引用様式</label>
         <select id="style-select">
           <option value="vancouver">Vancouver</option>
           <option value="apa">APA</option>
@@ -259,8 +267,53 @@
           <option value="ieee">IEEE</option>
           <option value="elsevier-harvard">Elsevier Harvard</option>
           <option value="chicago-author-date">Chicago Author-Date</option>
+          <option value="american-medical-association">AMA</option>
+          <option value="modern-language-association">MLA</option>
+          <option value="harvard-cite-them-right">Harvard (Cite Them Right)</option>
+          <option value="plos">PLOS</option>
+          <option value="science">Science</option>
+          <optgroup id="saved-custom-styles" label="自分の様式"></optgroup>
         </select>
-        <input id="custom-style-input" placeholder="任意CSL ID: 例 american-chemical-society" />
+        <div class="inline-row start">
+          <button id="new-style-button" class="toggle-button" type="button">自分の様式を作成</button>
+          <button id="edit-style-button" class="toggle-button" type="button" disabled>様式を編集</button>
+        </div>
+        <section id="style-editor" class="style-editor hidden" aria-labelledby="style-editor-title">
+          <h2 id="style-editor-title">カスタム引用様式</h2>
+          <p class="message">様式はこのWord文書内に保存されます。保存して適用すると、文書内の引用と参考文献が更新されます。</p>
+          <label for="style-name">様式名</label>
+          <input id="style-name" maxlength="80" placeholder="例：研究室の引用様式" />
+          <label for="style-kind">引用形式（変更するとテンプレートを初期化します）</label>
+          <select id="style-kind">
+            <option value="author-date">著者・年</option>
+            <option value="numeric">番号</option>
+          </select>
+          <label for="style-citation-template">本文引用のテンプレート</label>
+          <textarea id="style-citation-template" maxlength="2000" rows="2"></textarea>
+          <label for="style-bibliography-template">参考文献のテンプレート</label>
+          <textarea id="style-bibliography-template" maxlength="2000" rows="4"></textarea>
+          <label><input id="style-superscript" type="checkbox" />本文引用を上付きにする（番号形式）</label>
+          <details class="style-help">
+            <summary>使用できる項目と書き方</summary>
+            <p class="message">{authors} 全著者、{author} 本文用の著者、{year} 年、{title} タイトル、{journal} 雑誌、{volume} 巻、{issue} 号、{pages} ページ、{publisher} 出版社、{doi} DOI、{doiUrl} DOIリンク、{number} 引用番号、{locator} 引用位置。</p>
+            <p class="message">[[ doi: {doi}]] のように囲むと、項目が空の場合はその部分を省略します。番号形式では両方のテンプレートに {number} を含めてください。HTMLやCSL XMLの入力には対応していません。</p>
+          </details>
+          <p id="style-preview-message" class="message" role="status" aria-live="polite"></p>
+          <div id="style-preview" class="hidden">
+            <p class="message">サンプルの本文引用（引用位置 p. 25）</p>
+            <p class="style-preview"><span id="style-citation-preview"></span></p>
+            <p class="message">サンプルの参考文献</p>
+            <p id="style-bibliography-preview" class="style-preview"></p>
+          </div>
+          <button id="save-style-button" class="button primary" type="button">保存して適用</button>
+          <button id="cancel-style-button" class="button ghost" type="button">閉じる</button>
+        </section>
+        <details>
+          <summary>その他の既存様式をCSL IDで指定</summary>
+          <label for="custom-style-input">CSL ID</label>
+          <input id="custom-style-input" placeholder="例 american-chemical-society" />
+          <p class="message">インストール済みのCSL様式を使用します。</p>
+        </details>
         <input id="locator-input" placeholder="ページ番号・位置: 例 p. 25 / pp. 10-12" />
         <button id="insert-citation-button" class="button primary">本文に引用を挿入</button>
         <div class="inline-row start" style="margin-top:10px;">
@@ -297,6 +350,6 @@
 
       <footer id="status" class="status">Word と接続中です。</footer>
     </main>
-    <script src="./taskpane.js?v=citation-editor-v1"></script>
+    <script src="./taskpane.js?v=custom-citation-styles-v1"></script>
   </body>
 </html>

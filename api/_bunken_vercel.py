@@ -10,6 +10,8 @@ if str(API_ROOT) not in sys.path:
     sys.path.insert(0, str(API_ROOT))
 
 from shared.bunken_service import build_bibliography_entry, build_in_text_citation
+from shared.bunken_models import PaperSummary
+from shared.custom_styles import format_custom, validate_custom_style
 from shared.data_access import (
     build_auth_diagnostics,
     build_context_from_token,
@@ -67,7 +69,7 @@ class BunkenHandler(BaseHTTPRequestHandler):
     def handle_error(self, error):
         self.json_response(
             {"error": str(error)},
-            status=401 if isinstance(error, PermissionError) else 500,
+            status=401 if isinstance(error, PermissionError) else 400 if isinstance(error, ValueError) else 500,
         )
 
     def options_response(self):
@@ -167,6 +169,7 @@ def handle_citations_format(handler):
     payload = req.get_json()
     items = payload.get("items", [])
     style = payload.get("style", "vancouver")
+    custom = resolve_custom_style(payload)
     paper_ids = [str(item.get("paperId")) for item in items]
     papers = fetch_papers_by_ids(resolve_request_context(req), paper_ids)
     rendered_items = []
@@ -174,7 +177,9 @@ def handle_citations_format(handler):
         rendered_items.append(
             {
                 "paperId": paper.id,
-                "renderedText": build_in_text_citation(
+                "renderedText": format_custom(
+                    paper, custom, "citationTemplate", item.get("referenceNumber"), item.get("locator"),
+                ) if custom else build_in_text_citation(
                     paper,
                     style=style,
                     locator=item.get("locator"),
@@ -193,15 +198,41 @@ def handle_bibliography_format(handler):
     req = handler.request_parts()
     payload = req.get_json()
     style = payload.get("style", "vancouver")
+    custom = resolve_custom_style(payload)
     paper_ids = [str(paper_id) for paper_id in payload.get("paperIds", [])]
     unique_ids = list(dict.fromkeys(paper_ids))
     papers = fetch_papers_by_ids(resolve_request_context(req), unique_ids)
     handler.json_response(
         {
             "title": "References",
-            "entries": [build_bibliography_entry(paper, style) for paper in papers],
+            "entries": [
+                format_custom(paper, custom, "bibliographyTemplate", index + 1)
+                if custom else build_bibliography_entry(paper, style)
+                for index, paper in enumerate(papers)
+            ],
         }
     )
+
+
+def resolve_custom_style(payload):
+    if str(payload.get("style", "")).startswith("custom-"):
+        return validate_custom_style(payload.get("customStyle"))
+    return None
+
+
+def handle_styles_preview(handler):
+    # Fixed sample only; this endpoint never reads or writes user data.
+    definition = validate_custom_style(handler.request_parts().get_json().get("customStyle"))
+    paper = PaperSummary(
+        id="sample", title="A study of citation styles", authors="Sato, Suzuki",
+        journal="Journal of Examples", year=2024, volume="12", issue="3", pages="45-67",
+        doi="10.1234/example", publisher="Example Press",
+    )
+    handler.json_response({
+        "citation": format_custom(paper, definition, "citationTemplate", 1, "p. 25"),
+        "bibliography": format_custom(paper, definition, "bibliographyTemplate", 1),
+        "superscript": definition["superscript"],
+    })
 
 
 def handle_documents_citations(handler):

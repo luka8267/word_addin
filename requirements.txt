@@ -1,2 +1,2 @@
-citeproc-py
-citeproc-py-styles
+citeproc-py==0.11.1
+citeproc-py-styles==0.1.6

@@ -1,4 +1,5 @@
 import os
+import re
 
 from .bunken_models import PaperSummary
 
@@ -6,6 +7,7 @@ try:
     from citeproc import Citation, CitationItem, CitationStylesBibliography, CitationStylesStyle
     from citeproc.formatter import plain
     from citeproc.source.json import CiteProcJSON
+    from citeproc.source import Locator
     import citeproc_styles
 except ImportError:
     Citation = None
@@ -19,11 +21,21 @@ except ImportError:
 
 CSL_STYLE_ALIASES = {
     "apa": "apa",
-    "vancouver": "vancouver",
+    "vancouver": "nlm-citation-sequence",
     "nature": "nature",
     "acs": "american-chemical-society",
     "ieee": "ieee",
     "american-chemical-society": "american-chemical-society",
+    "american-medical-association": "american-medical-association",
+    "modern-language-association": "modern-language-association",
+    "harvard-cite-them-right": "harvard-cite-them-right",
+    "plos": "plos",
+    "science": "science",
+}
+
+ADDITIONAL_STYLES = {
+    "american-medical-association", "modern-language-association",
+    "harvard-cite-them-right", "plos", "science",
 }
 
 
@@ -31,9 +43,15 @@ def build_in_text_citation(paper: PaperSummary, style: str, locator: str | None 
     normalized_style = normalize_style(style)
     lead_author = author_year_label(paper.authors)
     year = year_label(paper.year)
-    if normalized_style in {"vancouver", "acs", "nature", "ieee"}:
+    if normalized_style in {"vancouver", "acs", "nature", "ieee", "american-chemical-society",
+                            "american-medical-association", "plos", "science"}:
         locator_part = f", {locator}" if locator else ""
         return f"[{paper.id}{locator_part}]"
+    if normalized_style != "apa":
+        csl_text = build_csl_in_text_citation(paper, normalized_style, locator)
+        if csl_text:
+            return csl_text
+        raise ValueError(f"引用様式 {normalized_style} を読み込めません。")
     locator_part = f", {locator}" if locator else ""
     return f"({lead_author}, {year}{locator_part})"
 
@@ -43,6 +61,8 @@ def build_bibliography_entry(paper: PaperSummary, style: str) -> str:
     csl_entry = build_csl_bibliography_entry(paper, normalized_style)
     if csl_entry:
         return csl_entry
+    if normalized_style in ADDITIONAL_STYLES:
+        raise ValueError(f"引用様式 {normalized_style} を読み込めません。")
     authors = bibliography_authors(paper.authors, normalized_style)
     year = year_label(paper.year)
     doi = doi_suffix(paper.doi, normalized_style)
@@ -66,7 +86,7 @@ def normalize_style(style: str) -> str:
         return normalized
     if get_csl_style_path(normalized):
         return normalized
-    return "vancouver"
+    raise ValueError(f"引用様式 {normalized} は利用できません。CSL IDを確認してください。")
 
 
 def get_csl_style_path(style: str) -> str | None:
@@ -74,7 +94,7 @@ def get_csl_style_path(style: str) -> str | None:
         return None
     style_id = CSL_STYLE_ALIASES.get(style, style)
     style_id = (style_id or "").strip().lower()
-    if not style_id:
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", style_id):
         return None
     path = os.path.join(os.path.dirname(citeproc_styles.__file__), "styles", f"{style_id}.csl")
     return path if os.path.exists(path) else None
@@ -141,6 +161,22 @@ def build_csl_bibliography_entry(paper: PaperSummary, style: str) -> str | None:
     if not entries:
         return None
     return append_missing_csl_doi(str(entries[0]).strip(), paper, style)
+
+
+def build_csl_in_text_citation(paper: PaperSummary, style: str, locator: str | None) -> str | None:
+    style_path = get_csl_style_path(style)
+    if not style_path or CitationStylesStyle is None:
+        return None
+    item = paper_to_csl_json(paper)
+    bibliography = CitationStylesBibliography(
+        CitationStylesStyle(style_path, validate=False), CiteProcJSON([item]), plain,
+    )
+    options = {}
+    if locator:
+        options["locator"] = Locator("page", re.sub(r"^pp?\.\s*", "", locator))
+    citation = Citation([CitationItem(item["id"], **options)])
+    bibliography.register(citation)
+    return str(bibliography.cite(citation, lambda missing: None)).strip()
 
 
 def append_missing_csl_doi(text: str, paper: PaperSummary, style: str) -> str:

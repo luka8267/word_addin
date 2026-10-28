@@ -253,7 +253,7 @@ class AddinCitationFormatTests(unittest.TestCase):
         )
 
         self.assertIn("https://doi.org/10.1000/example", build_bibliography_entry(paper, "apa"))
-        self.assertIn("doi: 10.1000/example", build_bibliography_entry(paper, "vancouver"))
+        self.assertRegex(build_bibliography_entry(paper, "vancouver"), r"doi:\s*10\.1000/example")
 
     def test_bibliography_entries_include_publication_metadata(self):
         paper = PaperSummary(

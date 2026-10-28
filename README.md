@@ -81,6 +81,32 @@ For a publisher that blocks server-side PDF fetching, add `-AllowPdfCandidateOnl
 
 ## Local Taskpane and API
 
+### 引用様式
+
+引用挿入の「引用様式」から Vancouver、APA、ACS、Nature、IEEE、Elsevier Harvard、
+Chicago Author-Date、AMA、MLA、Harvard (Cite Them Right)、PLOS、Science を選択できます。
+その他のインストール済み様式は「その他の既存様式をCSL IDで指定」から指定します。
+存在しないIDはエラーになり、別の様式へ自動的に置き換えません。
+標準様式には [CSLの様式定義](https://github.com/citation-style-language/styles)を使用します。
+CSLパッケージは検証した版に固定し、従来の `vancouver` IDは `nlm-citation-sequence` に対応付けています。
+
+独自の様式は「自分の様式を作成」から作成できます。
+
+1. 名前と引用形式（著者・年／番号）を選びます。
+2. 本文引用と参考文献のテンプレートを編集し、サンプルのプレビューを確認します。
+3. 「保存して適用」で、このWord文書内に保存し、既存の引用・参考文献を更新します。
+4. 保存後は一覧の「自分の様式」から選択し、「様式を編集」で変更できます。
+
+本文引用の例: `{author}（{year}）[[, {locator}]]`
+
+参考文献の例: `{authors}. {title}.[[ {journal}.]][[ {doiUrl}]]`
+
+`[[...]]` 内の項目が空なら、その部分全体を省略します。利用可能な項目は編集画面に表示されます。
+番号形式では、本文・参考文献の両方に `{number}` が必要です。番号は文書中の初出順に振り直され、
+複数文献のカスタム本文引用は各文献を整形して `; ` で連結します。本文の上付きも選択できます。
+様式はWord文書に保存されます（アカウント全体への同期や別文書への自動共有は行いません）。
+カスタム様式はプレーンテキストのテンプレート方式で、CSL XMLやHTMLの直接編集には対応しません。
+
 Build the static task pane into `public`:
 
 ```powershell
@@ -153,6 +179,7 @@ Reference: [Microsoft Learn - Sideload Office Add-ins from a network share](http
 
 ```powershell
 python -m unittest discover -s tests -v
+node --test tests/test_taskpane_styles.js tests/test_taskpane_citation_editor.js
 python -m json.tool chrome_extension\manifest.json
 node --check chrome_extension\popup.js
 node tests\test_chrome_extension.js
