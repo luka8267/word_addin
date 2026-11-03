@@ -3,9 +3,12 @@ const path = require("node:path");
 const { chromium } = require("playwright");
 
 const repoRoot = path.resolve(__dirname, "..");
-const popupSource = fs.readFileSync(path.join(repoRoot, "chrome_extension", "popup.js"), "utf8");
+const popupSource = fs.readFileSync(path.join(repoRoot, "chrome_extension", "extractor.js"), "utf8");
 
 const CASES = [
+  { name: "ACSPlus", url: "https://pubs.acs.org/doi/abs/10.1021/jp953141%2B", expectDoi: "10.1021/jp953141+", allowBlocked: true },
+  { name: "DeGruyter", url: "https://www.degruyterbrill.com/document/doi/10.1515/pac-2025-0555/html", expectDoi: "10.1515/pac-2025-0555", allowBlocked: true },
+  { name: "SpringerArticleNumber", url: "https://link.springer.com/article/10.1007/s00894-023-05811-1", expectDoi: "10.1007/s00894-023-05811-1", allowBlocked: true },
   {
     name: "ACS",
     url: "https://pubs.acs.org/doi/10.1021/jp512766r",
@@ -92,6 +95,7 @@ async function extractCase(browser, testCase) {
       authors: payload.authors.length,
       journal: payload.journal,
       year: payload.year,
+      pages: payload.pages,
       pdfCandidates: payload.pdfCandidates.length,
       firstPdfCandidate: payload.pdfCandidates[0] || "",
       isLikelyPaper: payload.isLikelyPaper,
@@ -110,7 +114,10 @@ async function extractCase(browser, testCase) {
   const browser = await chromium.launch({ headless: true });
   try {
     const results = [];
-    for (const testCase of CASES) {
+    const requested = process.argv.slice(2);
+    const cases = requested.length ? CASES.filter(item => requested.includes(item.name)) : CASES;
+    if (!cases.length) throw new Error("No matching verification cases");
+    for (const testCase of cases) {
       results.push(await extractCase(browser, testCase));
     }
     console.table(results);

@@ -1,4 +1,6 @@
 const assert = require("node:assert/strict");
+const { JSDOM } = require("jsdom");
+const parserDocument = new JSDOM("").window.document;
 const {
   buildDerivedPdfCandidates,
   compareVersions,
@@ -48,6 +50,7 @@ function script(json) {
 
 function installDocument({ metas = [], links = [], scripts = [], bodyText = "", title = "" }) {
   global.document = {
+    createElement: parserDocument.createElement.bind(parserDocument),
     title,
     body: { innerText: bodyText },
     querySelectorAll(selector) {

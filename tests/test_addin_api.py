@@ -348,7 +348,7 @@ class ExtensionSaveTests(unittest.TestCase):
                 return [{"display_order": 5}]
             if path == "/rest/v1/items" and kwargs.get("method") == "POST":
                 body = kwargs["json_body"]
-                self.assertEqual(body["title"], "Publisher Page")
+                self.assertEqual(body["title"], "Crossref Title")
                 self.assertEqual(body["publication_title"], "Crossref Journal")
                 self.assertEqual(body["year"], 2026)
                 self.assertEqual(body["doi"], "10.1000/example")
@@ -385,7 +385,7 @@ class ExtensionSaveTests(unittest.TestCase):
             )
 
         self.assertTrue(result["saved"])
-        self.assertEqual(result["title"], "Publisher Page")
+        self.assertEqual(result["title"], "Crossref Title")
 
     def test_extension_save_returns_existing_item_for_duplicate_doi(self):
         calls = []

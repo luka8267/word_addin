@@ -6,7 +6,9 @@ Chrome / Brave から現在開いている論文ページを bunken に登録す
 
 - 論文ページからタイトル、著者、雑誌名、年、DOI、URL、abstract を取得
 - `citation_pdf_url`、PDFリンク、ACS の DOI ページから PDF 候補を検出
-- DOI がある場合は Crossref 側のメタデータで補完
+- DOI がある場合は、DOIが一致したCrossrefの正式タイトル・フルネームの著者・雑誌・刊行年・巻号・ページまたは論文番号を優先して保存
+- 著者の姓・名を分けて保存し、RIS/EndNote出力で複合姓やアクセントを保持
+- ページ名の混入、`nan`、DOI末尾の`+`やURLエンコードを処理
 - DOI またはタイトル・年で重複を確認
 - 取得できるPDFは Supabase Storage の `paper-pdfs` に保存
 - ACS などサーバー側取得がブロックされるPDFは、候補URLをブラウザで開いて手動アップロード
@@ -33,6 +35,7 @@ API URL と bunken アプリ URL は拡張機能に既定値として組み込�
 1. bunken アプリを開きます。
 2. サイドバーの「Chrome拡張機能」から最新版ZIPをダウンロードします。
 3. ZIPを展開します。
+   `extractor.js` と `popup.js` の両方が入っていることを確認してください。
 4. Chrome なら `chrome://extensions`、Brave なら `brave://extensions` を開きます。
 5. 既存の `bunken Web Importer` を削除します。
 6. 「パッケージ化されていない拡張機能を読み込む」から、新しく展開したフォルダを選びます。

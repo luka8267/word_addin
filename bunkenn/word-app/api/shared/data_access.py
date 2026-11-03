@@ -1,11 +1,14 @@
 import base64
 import json
 import ipaddress
+import math
 import os
 import re
 import sqlite3
 import time
 from datetime import datetime, timezone
+from html import unescape
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, unquote, urlencode, urljoin, urlparse
@@ -36,7 +39,7 @@ LEGACY_PAPER_SELECT_COLUMNS = "id,title,authors,journal,year,doi,user_id"
 EXTENSION_PAPER_SELECT_COLUMNS = "id,item_id,title,authors,journal,year,doi,user_id,volume,issue,pages,publisher,item_type"
 PDF_STORAGE_BUCKET = os.getenv("BUNKEN_PDF_STORAGE_BUCKET", "paper-pdfs")
 MAX_EXTENSION_PDF_BYTES = int(os.getenv("BUNKEN_EXTENSION_MAX_PDF_BYTES", str(25 * 1024 * 1024)))
-DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
+DOI_PATTERN = re.compile(r"10\.\d{4,9}/[-._;+()/:<>A-Z0-9]+", re.IGNORECASE)
 SUPABASE_AUTH_ERROR_MARKERS = (
     "bad_jwt",
     "invalid jwt",
@@ -67,10 +70,13 @@ def normalize_doi(value: str | None) -> str:
         return ""
     text = unquote(text)
     text = re.sub(r"^doi:\s*", "", text, flags=re.IGNORECASE).strip()
-    text = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^(?:https?://)?(?:dx\.)?doi\.org/", "", text, flags=re.IGNORECASE).strip()
     text = text.strip(". ,;\t\r\n")
     match = DOI_PATTERN.search(text)
-    return match.group(0).rstrip(". ,;") if match else text
+    doi = match.group(0).rstrip(". ,;") if match else text
+    if re.match(r"https?://(?:www\.)?degruyter(?:brill)?\.com/", str(value), re.IGNORECASE):
+        doi = re.sub(r"/html$", "", doi, flags=re.IGNORECASE)
+    return doi
 
 
 def doi_lookup_values(value: str | None) -> list[str]:
@@ -81,6 +87,7 @@ def doi_lookup_values(value: str | None) -> list[str]:
         dict.fromkeys(
             [
                 doi,
+                f"doi.org/{doi}",
                 f"doi:{doi}",
                 f"doi: {doi}",
                 f"https://doi.org/{doi}",
@@ -104,7 +111,37 @@ def parse_year(value) -> int | None:
 
 
 def clean_extension_text(value: str | None, max_length: int = 2000) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip())[:max_length]
+    if isinstance(value, float) and (not math.isfinite(value)):
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    text = re.sub(r"\s+", " ", str(value or "").strip())[:max_length]
+    return "" if text.casefold() in {"nan", "none", "null", "<na>", "nat"} else text
+
+
+class _MetadataTitleParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.parts = []
+
+    def handle_data(self, data):
+        self.parts.append(data)
+
+
+def clean_extension_title(value, journal=""):
+    parser = _MetadataTitleParser()
+    parser.feed(unescape(clean_extension_text(value, 2000)))
+    text = "".join(parser.parts)
+    text = re.sub(r"(\b[A-Z][a-z]?)\uf8ff(?=[A-Z][a-z]?\b)", r"\1-", text)
+    text = re.sub(r"(?:\$\$|\$)?\\pi\s*(?:\$\$|\$)?", "π", text)
+    text = re.sub(r"\s*\|(?:[^|]*\|)?\s*(?:Springer Nature Link|SpringerLink)\s*$", "", text, flags=re.IGNORECASE)
+    parts = re.split(r"\s+-\s+", text)
+    if len(parts) >= 5 and parts[-1].lower() == "wiley online library" and re.fullmatch(r"\d{4}", parts[-3]):
+        text = " - ".join(parts[:-4])
+    suffix = "| " + journal if journal else ""
+    if suffix and text.strip().casefold().endswith(suffix.casefold()):
+        text = text.strip()[:-len(suffix)]
+    return clean_extension_text(text, 1000)
 
 
 def normalize_author_list(value) -> list[str]:
@@ -139,28 +176,37 @@ def fetch_crossref_metadata(doi: str) -> dict:
     normalized_doi = normalize_doi(doi)
     if not normalized_doi:
         return {}
-    url = f"https://api.crossref.org/works/{quote(normalized_doi, safe='')}"
-    request = Request(
-        url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": "bunken-extension/1.0 (mailto:metadata@bunken.local)",
-        },
-        method="GET",
-    )
-    try:
-        with urlopen(request, timeout=12) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except Exception:
-        return {}
-
-    message = payload.get("message") if isinstance(payload, dict) else {}
+    candidates = [normalized_doi]
+    if normalized_doi.lower().endswith("/html"):
+        candidates.append(normalized_doi[:-5])
+    if not normalized_doi.endswith("+"):
+        candidates.append(normalized_doi + "+")
+    message = {}
+    for candidate in dict.fromkeys(candidates):
+        request = Request(
+            f"https://api.crossref.org/works/{quote(candidate, safe='')}",
+            headers={"Accept": "application/json", "User-Agent": "bunken-extension/0.2.16"}, method="GET",
+        )
+        try:
+            with urlopen(request, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+                message = payload.get("message") if isinstance(payload, dict) else {}
+            break
+        except HTTPError as error:
+            if error.code != 404:
+                return {}
+        except Exception:
+            return {}
     if not isinstance(message, dict):
         return {}
+    if normalize_doi(message.get("DOI")).casefold() not in {value.casefold() for value in candidates}:
+        return {}
     authors = []
+    author_details = []
     for author in message.get("author") or []:
         if not isinstance(author, dict):
             continue
+        family, given = clean_extension_text(author.get("family")), clean_extension_text(author.get("given"))
         literal = clean_extension_text(
             " ".join(
                 part
@@ -169,8 +215,10 @@ def fetch_crossref_metadata(doi: str) -> dict:
             ),
             300,
         )
+        literal = literal or clean_extension_text(author.get("name"), 300)
         if literal:
             authors.append(literal)
+            author_details.append({"family": family, "given": given} if family else {"literal": literal})
 
     issued_parts = (
         ((message.get("published-print") or {}).get("date-parts"))
@@ -183,8 +231,9 @@ def fetch_crossref_metadata(doi: str) -> dict:
         year = parse_year(issued_parts[0][0])
 
     return {
-        "title": clean_extension_text((message.get("title") or [""])[0], 1000),
+        "title": clean_extension_title((message.get("title") or [""])[0]),
         "authors": authors,
+        "authorDetails": author_details,
         "journal": clean_extension_text(
             (message.get("container-title") or message.get("short-container-title") or [""])[0],
             1000,
@@ -195,7 +244,7 @@ def fetch_crossref_metadata(doi: str) -> dict:
         "publisher": clean_extension_text(message.get("publisher") or "", 1000),
         "volume": clean_extension_text(message.get("volume") or "", 100),
         "issue": clean_extension_text(message.get("issue") or "", 100),
-        "pages": clean_extension_text(message.get("page") or "", 200),
+        "pages": clean_extension_text(message.get("article-number"), 200) or clean_extension_text(message.get("page"), 200),
         "abstract": clean_extension_text(message.get("abstract") or "", 10000),
     }
 
@@ -204,16 +253,16 @@ def merge_extension_metadata(source: dict, metadata: dict) -> dict:
     if not metadata:
         return source
     merged = dict(source)
-    for field in ("title", "journal", "url", "abstract"):
+    # A DOI-verified record takes precedence over browser titles and partial author names.
+    for field in ("title", "journal", "year", "volume", "issue", "pages", "publisher", "doi"):
+        if clean_extension_text(metadata.get(field)):
+            merged[field] = metadata[field]
+    for field in ("url", "abstract"):
         if not merged.get(field) and metadata.get(field):
             merged[field] = metadata[field]
-    for field in ("year", "volume", "issue", "pages", "publisher"):
-        if not merged.get(field) and metadata.get(field):
-            merged[field] = metadata[field]
-    if not merged.get("doi") and metadata.get("doi"):
-        merged["doi"] = metadata["doi"]
-    if not merged.get("authors") and metadata.get("authors"):
+    if metadata.get("authors"):
         merged["authors"] = metadata["authors"]
+        merged["authorDetails"] = metadata.get("authorDetails") or []
     return merged
 
 
@@ -255,7 +304,7 @@ def extension_source_from_payload(payload: dict) -> dict:
         payload.get("title"),
     )
     return {
-        "title": clean_extension_text(payload.get("title") or metadata.get("title") or metadata.get("citation_title"), 1000),
+        "title": clean_extension_title(payload.get("title") or metadata.get("title") or metadata.get("citation_title"), clean_extension_text(payload.get("journal") or metadata.get("citation_journal_title"))),
         "authors": normalize_author_list(payload.get("authors") or metadata.get("authors") or metadata.get("citation_authors")),
         "journal": clean_extension_text(payload.get("journal") or metadata.get("journal") or metadata.get("citation_journal_title"), 1000),
         "year": parse_year(payload.get("year") or metadata.get("year") or metadata.get("citation_publication_date")),
@@ -263,7 +312,7 @@ def extension_source_from_payload(payload: dict) -> dict:
         "url": source_url,
         "volume": clean_extension_text(payload.get("volume") or metadata.get("volume") or metadata.get("citation_volume"), 100),
         "issue": clean_extension_text(payload.get("issue") or metadata.get("issue") or metadata.get("citation_issue"), 100),
-        "pages": clean_extension_text(payload.get("pages") or metadata.get("pages"), 200),
+        "pages": clean_extension_text(payload.get("pages"), 200) or clean_extension_text(metadata.get("pages"), 200) or clean_extension_text(metadata.get("citation_article_number"), 200),
         "publisher": clean_extension_text(payload.get("publisher") or metadata.get("publisher") or metadata.get("citation_publisher"), 1000),
         "abstract": clean_extension_text(payload.get("abstract") or metadata.get("abstract") or metadata.get("description"), 10000),
         "pdfCandidates": pdf_candidates,
@@ -967,6 +1016,13 @@ def create_extension_item(context: dict[str, str], source: dict) -> dict:
         }
         for index, author in enumerate(source.get("authors") or [], start=1)
     ]
+    if source.get("authorDetails"):
+        creator_rows = [
+            {"item_id": item["id"], "creator_type": "author", "position": index,
+             "first_name": author.get("given") or None, "last_name": author.get("family") or None,
+             "literal_name": author.get("literal") or None}
+            for index, author in enumerate(source["authorDetails"], start=1)
+        ]
     if creator_rows:
         request_supabase(
             "/rest/v1/creators",
